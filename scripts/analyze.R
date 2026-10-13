@@ -1,66 +1,76 @@
-suppressPackageStartupMessages({library(DESeq2);library(tximport);library(GO.db);library(jsonlite)})
-a <- commandArgs(TRUE); root <- a[1]; cfg <- fromJSON(file.path(root,'config.json'))
-m <- read.csv(file.path(root,'samples.csv'),check.names=FALSE); rownames(m)<-m$sample
-if('batch' %in% names(m)) m$batch<-factor(m$batch)
-m$group <- relevel(factor(m$group),cfg$control)
-design <- if('batch' %in% names(m) && length(unique(m$batch))>1) ~batch+group else ~group
+suppressPackageStartupMessages({library(DESeq2);library(tximport);library(GO.db);library(jsonlite);library(fgsea)})
+a <- commandArgs(TRUE);root<-a[1];cfg<-fromJSON(file.path(root,'config.json'),simplifyVector=FALSE)
+if(is.null(cfg$deg_profile))cfg$deg_profile<-'strict'
+script <- sub('^--file=','',grep('^--file=',commandArgs(),value=TRUE))
+source(file.path(dirname(script),'enrichment.R'));source(file.path(dirname(script),'mining.R'))
+m<-read.csv(file.path(root,'samples.csv'),check.names=FALSE,stringsAsFactors=FALSE);rownames(m)<-m$sample
+m$group<-relevel(factor(m$group),cfg$control)
+for(c in cfg$covariates)m[[c$name]]<-if(c$type=='numeric')as.numeric(m[[c$name]]) else factor(m[[c$name]])
+design<-reformulate(c(vapply(cfg$covariates,`[[`,character(1),'name'),'group'))
+mm<-model.matrix(design,m);if(qr(mm)$rank<ncol(mm)||nrow(mm)<=ncol(mm))stop('Design is confounded or lacks residual degrees of freedom.')
 if(file.exists(file.path(root,'counts.csv'))){
- c <- read.csv(file.path(root,'counts.csv'),row.names=1,check.names=FALSE)
- dds <- DESeqDataSetFromMatrix(round(as.matrix(c[,m$sample,drop=FALSE])),m,design)
+ counts<-read.csv(file.path(root,'counts.csv'),row.names=1,check.names=FALSE)
+ dds<-DESeqDataSetFromMatrix(as.matrix(counts[,m$sample,drop=FALSE]),m,design)
 }else{
- files <- file.path(root,'quant',m$sample,'quant.sf');names(files)<-m$sample
- map <- read.delim(file.path(root,'tx2gene.tsv'),header=TRUE,colClasses='character')
+ files<-file.path(root,'quant',m$sample,'quant.sf');names(files)<-m$sample
+ map<-read.delim(file.path(root,'tx2gene.tsv'),header=TRUE,colClasses='character')
  txi<-tximport(files,type='salmon',tx2gene=map[,1:2],ignoreTxVersion=TRUE)
+ write.csv(txi$abundance,file.path(root,'tpm.csv'))
  dds<-DESeqDataSetFromTximport(txi,m,design)
 }
-dds<-dds[rowSums(counts(dds)>=10)>=2,]; if(nrow(dds)<10)stop('Too few expressed genes')
+raw_all<-counts(dds);before<-nrow(dds);dds<-dds[rowSums(counts(dds)>=cfg$min_count)>=cfg$min_samples,];if(nrow(dds)<10)stop('Too few expressed genes after filtering')
 dds<-DESeq(dds,quiet=TRUE)
-r<-as.data.frame(results(dds,contrast=c('group',cfg$treatment,cfg$control),alpha=cfg$alpha));r$gene<-rownames(r)
-ids<-sub('\\..*$','',r$gene)
-if(file.exists(file.path(root,'annotation.tsv'))){
- custom<-read.delim(file.path(root,'annotation.tsv'),colClasses='character')
- ann<-data.frame(ENSEMBL=custom$gene,GO=custom$go,ONTOLOGY=custom$ontology)
- r$symbol<-custom$symbol[match(ids,custom$gene)]
- map_custom<-function(col) custom[[col]][match(ids,custom$gene)]
-} else if(requireNamespace('org.Mm.eg.db',quietly=TRUE)){
- db<-org.Mm.eg.db::org.Mm.eg.db
- keys_ok<-intersect(ids,keys(db,keytype='ENSEMBL'))
- if(!length(keys_ok))stop('No Ensembl mouse gene IDs matched annotation; check gene identifiers')
- syms<-mapIds(db,keys=keys_ok,column='SYMBOL',keytype='ENSEMBL',multiVals='first');r$symbol<-unname(syms[ids])
- ann<-select(db,keys=keys_ok,columns=c('GOALL','ONTOLOGYALL'),keytype='ENSEMBL');names(ann)<-c('ENSEMBL','GO','ONTOLOGY')
- map_custom<-function(col){ mapped<-mapIds(db,keys=keys_ok,column=if(col=='symbol') 'SYMBOL' else 'ENTREZID',keytype='ENSEMBL',multiVals='first');unname(mapped[ids]) }
-} else {
- r$symbol<-NA_character_;ann<-data.frame(ENSEMBL=character(),GO=character(),ONTOLOGY=character())
- map_custom<-function(col) rep(NA_character_,length(ids))
- writeLines('GO annotation unavailable: install org.Mm.eg.db or provide annotation TSV. GO not run.',file.path(root,'annotation-warning.txt'))
-}
-ann<-ann[!is.na(ann$GO)&nzchar(ann$GO)&ann$ENSEMBL%in%ids,]
-if(!nrow(ann))writeLines('GO not run: zero annotated genes.',file.path(root,'annotation-warning.txt'))
-write.csv(r,file.path(root,'differential.csv'),row.names=FALSE)
-vs <- varianceStabilizingTransformation(dds,blind=FALSE)
-write.csv(assay(vs),file.path(root,'vst.csv'))
-write.csv(counts(dds,normalized=TRUE),file.path(root,'normalized.csv'))
-# GO ORA: expressed, mapped genes form the universe; each ontology has its own BH correction.
+norm<-counts(dds,normalized=TRUE);vs<-assay(varianceStabilizingTransformation(dds,blind=FALSE))
+write.csv(raw_all,file.path(root,'raw-counts.csv'));write.csv(norm,file.path(root,'normalized.csv'));write.csv(vs,file.path(root,'vst.csv'))
+pca_genes<-order(apply(vs,1,var),decreasing=TRUE)[seq_len(min(500,nrow(vs)))]
+pca<-prcomp(t(vs[pca_genes,,drop=FALSE]),center=TRUE,scale.=FALSE)
+write.csv(data.frame(sample=m$sample,group=m$group,pca$x[,seq_len(min(5,ncol(pca$x))),drop=FALSE]),file.path(root,'pca-scores.csv'),row.names=FALSE)
+write.csv(data.frame(PC=seq_along(pca$sdev),variance=pca$sdev^2/sum(pca$sdev^2)),file.path(root,'pca-variance.csv'),row.names=FALSE)
+write.csv(cor(vs),file.path(root,'sample-correlation.csv'));write.csv(as.matrix(dist(t(vs))),file.path(root,'sample-distance.csv'))
+qc<-data.frame(sample=m$sample,group=m$group,library_size=colSums(raw_all),detected_genes=colSums(raw_all>0),median_normalized=apply(norm,2,median),size_factor=if(is.null(sizeFactors(dds)))NA_real_ else sizeFactors(dds))
+write.csv(qc,file.path(root,'sample-qc.csv'),row.names=FALSE)
+disp<-data.frame(gene=rownames(dds),baseMean=rowMeans(norm),dispersion=dispersions(dds),cooks_max=apply(assays(dds)[['cooks']],1,max,na.rm=TRUE));write.csv(disp,file.path(root,'dispersion.csv'),row.names=FALSE)
+annotation<-load_annotation(rownames(dds),root,cfg)
+if(!is.null(annotation$warning))writeLines(annotation$warning,file.path(root,'annotation-warning.txt'))
+write_json(list(go=annotation$go,pathway=annotation$gmt,go_desc=as.list(annotation$go_desc),pathway_desc=as.list(annotation$gmt_desc)),file.path(root,'gene-sets.json'),auto_unbox=TRUE)
+summary<-list()
+for(cmp in cfg$comparisons){
+ directory<-file.path(root,'contrasts',cmp$name);dir.create(directory,recursive=TRUE,showWarnings=FALSE)
+ result<-results(dds,contrast=c('group',cmp$treatment,cmp$control),alpha=cfg$alpha)
+ r<-as.data.frame(result);r$gene<-rownames(r);r$log2FoldChange_raw<-r$log2FoldChange
+ if(cfg$shrinkage=='normal'){
+  shrunk<-lfcShrink(dds,contrast=c('group',cmp$treatment,cmp$control),res=result,type='normal',quiet=TRUE)
+  r$log2FoldChange<-shrunk$log2FoldChange;r$lfcSE<-shrunk$lfcSE
+ }
+ r$symbol<-annotation$mapped$symbol[match(r$gene,annotation$mapped$gene)]
+ profiles<-list(nominal=list(column='pvalue',alpha=.05,lfc=0),strict=list(column='padj',alpha=.05,lfc=1))
+ profile_counts<-list()
+ r$mean_control<-rowMeans(norm[,m$group==cmp$control,drop=FALSE]);r$mean_treatment<-rowMeans(norm[,m$group==cmp$treatment,drop=FALSE])
+ r<-r[order(r$padj,na.last=TRUE),]
+ # fgsea is run once on all retained ranked genes, independent of DEG profile.
+ for(profile in names(profiles)){
+  spec<-profiles[[profile]];rp<-r
+  rp$significant<-!is.na(rp[[spec$column]]) & rp[[spec$column]]<spec$alpha & abs(rp$log2FoldChange)>spec$lfc
+  rp$direction<-ifelse(rp$significant,ifelse(rp$log2FoldChange>0,'up','down'),'not_significant')
+  pp<-file.path(directory,'profiles',profile);dir.create(pp,recursive=TRUE,showWarnings=FALSE)
+  write.csv(rp,file.path(pp,'differential.csv'),row.names=FALSE)
+  for(direction in c('all','up','down'))write.csv(rp[rp$significant & (direction=='all' | rp$direction==direction),],file.path(pp,paste0('deg-',direction,'.csv')),row.names=FALSE)
+  run_enrichment(rp,annotation,pp,cfg,run_gsea=profile=='strict')
+  profile_counts[[profile]]<-list(profile=profile,column=spec$column,alpha=spec$alpha,lfc=spec$lfc,operator='strict < / >',total=sum(rp$significant),up=sum(rp$direction=='up'),down=sum(rp$direction=='down'))
+ }
+ active<-cfg$deg_profile
+ pp<-file.path(directory,'profiles',active)
+ for(file in c('differential.csv','deg-all.csv','deg-up.csv','deg-down.csv','go.csv','pathway.csv'))file.copy(file.path(pp,file),file.path(directory,file),overwrite=TRUE)
+ for(file in c('gsea.csv','gsea-ranks.csv','pathway_gsea.csv','pathway_gsea-ranks.csv'))file.copy(file.path(directory,'profiles','strict',file),file.path(directory,file),overwrite=TRUE)
+ chosen<-profile_counts[[active]]
+ write_json(chosen,file.path(directory,'active-profile.json'),auto_unbox=TRUE,pretty=TRUE)
+ r<-read.csv(file.path(directory,'differential.csv'),check.names=FALSE)
 
-valid<-!is.na(r$padj); sig<-ids[valid & r$padj<cfg$alpha & abs(r$log2FoldChange)>=cfg$lfc]
-universe<-unique(ann$ENSEMBL);sig<-intersect(sig,universe)
-sets<-split(ann$ENSEMBL,ann$GO); sets<-lapply(sets,unique)
-go<-lapply(names(sets),function(term){g<-intersect(sets[[term]],universe);k<-length(intersect(g,sig)); if(length(g)<5)return(NULL);data.frame(term=term,description=Term(GOTERM[[term]]),ontology=ann$ONTOLOGY[match(term,ann$GO)],overlap=k,size=length(g),pvalue=phyper(k-1,length(g),length(universe)-length(g),length(sig),lower.tail=FALSE))})
-go<-do.call(rbind,go);if(is.null(go))go<-data.frame(term=character(),description=character(),ontology=character(),overlap=integer(),size=integer(),pvalue=numeric())
-go$padj<-ave(go$pvalue,go$ontology,FUN=function(x)p.adjust(x,'BH'));write.csv(go,file.path(root,'go.csv'),row.names=FALSE)
-# Ranked GO GSEA, weighted running sum and gene-label permutations; deterministic seed.
-ranked<-r$stat;names(ranked)<-ids;ranked<-sort(ranked[is.finite(ranked)&!duplicated(ids)],decreasing=TRUE)
-es<-function(x,hit){w<-abs(x); if(!any(hit)||all(hit)||sum(w[hit])==0)return(0);walk<-cumsum(ifelse(hit,w/sum(w[hit]),-1/sum(!hit)));walk[which.max(abs(walk))]}
-set.seed(42);gsea<-lapply(names(sets),function(term){hit<-names(ranked)%in%sets[[term]];n<-sum(hit);if(n<15||n>500||n>=length(ranked))return(NULL);obs<-es(ranked,hit);null<-replicate(cfg$permutations,es(ranked,sample(hit)));same<-null[sign(null)==sign(obs)];nes<-if(length(same))obs/mean(abs(same)) else NA_real_;p<-(1+sum(abs(same)>=abs(obs)))/(1+length(same));data.frame(term=term,description=Term(GOTERM[[term]]),size=n,ES=obs,NES=nes,pvalue=p)})
-gsea<-do.call(rbind,gsea);if(is.null(gsea))gsea<-data.frame(term=character(),description=character(),size=integer(),ES=numeric(),NES=numeric(),pvalue=numeric());gsea$padj<-p.adjust(gsea$pvalue,'BH');write.csv(gsea,file.path(root,'gsea.csv'),row.names=FALSE)
-writeLines(capture.output(sessionInfo()),file.path(root,'R-session.txt'));saveRDS(dds,file.path(root,'dds.rds'))
-if(file.exists(file.path(root,'pathways.gmt'))){
- lines<-strsplit(readLines(file.path(root,'pathways.gmt')),'\t'); ps<-lapply(lines,function(x)unique(x[-c(1,2)]));names(ps)<-sapply(lines,`[`,1);descs<-sapply(lines,`[`,2);names(descs)<-names(ps)
- mapped<-if(cfg$gmt_id=='ENSEMBL') ids else map_custom(if(cfg$gmt_id=='SYMBOL') 'symbol' else 'entrez')
- bg<-intersect(unique(mapped[!is.na(mapped)]),unique(unlist(ps)));if(!length(bg))stop('GMT genes match zero tested genes; check ID type and annotation');selected<-intersect(mapped[valid & r$padj<cfg$alpha & abs(r$log2FoldChange)>=cfg$lfc],bg)
- pr<-lapply(names(ps),function(term){g<-intersect(ps[[term]],bg);k<-length(intersect(g,selected));if(length(g)<5)return(NULL);data.frame(term=term,description=descs[term],overlap=k,size=length(g),pvalue=phyper(k-1,length(g),length(bg)-length(g),length(selected),lower.tail=FALSE))})
- pr<-do.call(rbind,pr);if(is.null(pr))pr<-data.frame(term=character(),description=character(),overlap=integer(),size=integer(),pvalue=numeric());pr$padj<-p.adjust(pr$pvalue,'BH');write.csv(pr,file.path(root,'pathway.csv'),row.names=FALSE)
- rank2<-r$stat;names(rank2)<-mapped;keep<-is.finite(rank2)&!is.na(mapped);rank2<-rank2[keep];rank2<-rank2[order(abs(rank2),decreasing=TRUE)];rank2<-sort(rank2[!duplicated(names(rank2))],decreasing=TRUE)
- set.seed(42);pg<-lapply(names(ps),function(term){hit<-names(rank2)%in%ps[[term]];n<-sum(hit);if(n<15||n>500||n>=length(rank2))return(NULL);obs<-es(rank2,hit);null<-replicate(cfg$permutations,es(rank2,sample(hit)));same<-null[sign(null)==sign(obs)];data.frame(term=term,description=descs[term],size=n,ES=obs,NES=if(length(same))obs/mean(abs(same)) else NA_real_,pvalue=(1+sum(abs(same)>=abs(obs)))/(1+length(same)))})
- pg<-do.call(rbind,pg);if(is.null(pg))pg<-data.frame(term=character(),description=character(),size=integer(),ES=numeric(),NES=numeric(),pvalue=numeric());pg$padj<-p.adjust(pg$pvalue,'BH');write.csv(pg,file.path(root,'pathway_gsea.csv'),row.names=FALSE)
+ summary[[cmp$name]]<-list(name=cmp$name,control=cmp$control,treatment=cmp$treatment,tested=nrow(r),up=sum(r$direction=='up'),down=sum(r$direction=='down'),significance=chosen$column,alpha=chosen$alpha,lfc=chosen$lfc,shrinkage=cfg$shrinkage,active_profile=active,profiles=profile_counts)
 }
+# Preserve first-contrast paths for existing projects and scripts.
+first<-file.path(root,'contrasts',cfg$comparisons[[1]]$name)
+for(f in list.files(first,full.names=TRUE)[!dir.exists(list.files(first,full.names=TRUE))])file.copy(f,file.path(root,basename(f)),overwrite=TRUE)
+run_mining(vs,norm,m,mm,annotation,root,cfg)
+write_json(list(design=paste(deparse(design),collapse=''),genes_input=before,genes_retained=nrow(dds),samples=nrow(m),pca_genes=length(pca_genes),reference=cfg$reference,contrasts=summary,annotation_warning=annotation$warning,gsea_engine=paste0('fgsea ',packageVersion('fgsea'),' multilevel; Wald stat; BH')),file.path(root,'analysis-summary.json'),auto_unbox=TRUE,pretty=TRUE)
+writeLines(capture.output(sessionInfo()),file.path(root,'R-session.txt'));saveRDS(dds,file.path(root,'dds.rds'))

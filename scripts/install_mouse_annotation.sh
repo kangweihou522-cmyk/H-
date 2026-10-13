@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-# Use Bioconductor 3.16 for the Debian/R 4.2 runtime; TLS and package MD5 remain enabled.
-docker build --build-arg HTTP_PROXY --build-arg HTTPS_PROXY -f Dockerfile.annotation -t mouse-rnaseq:annotated .
-docker tag mouse-rnaseq:annotated mouse-rnaseq:1
-docker run --rm mouse-rnaseq:1 Rscript -e 'stopifnot(requireNamespace("org.Mm.eg.db",quietly=TRUE))'
+source scripts/build_options.sh
+if [[ -n "${CODEX_PROXY_CERT:-}" ]]; then
+  build_args+=(--secret id=proxy_ca,src=/etc/ssl/certs/ca-certificates.crt)
+fi
+docker build "${build_args[@]}" -f Dockerfile.annotation -t mouse-rnaseq:2-annotated .
+docker tag mouse-rnaseq:2-annotated mouse-rnaseq:2
+docker run --rm mouse-rnaseq:2 Rscript -e 'stopifnot(requireNamespace("org.Mm.eg.db",quietly=TRUE))'
