@@ -1,0 +1,5 @@
+sample,group,fastq1,fastq2
+C1,Control,/data/C1_R1.fastq.gz,/data/C1_R2.fastq.gz
+C2,Control,/data/C2_R1.fastq.gz,/data/C2_R2.fastq.gz
+T1,Treatment,/data/T1_R1.fastq.gz,/data/T1_R2.fastq.gz
+T2,Treatment,/data/T2_R1.fastq.gz,/data/T2_R2.fastq.gz

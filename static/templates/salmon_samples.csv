@@ -1,0 +1,5 @@
+sample,group,quant
+C1,Control,/data/C1/quant.sf
+C2,Control,/data/C2/quant.sf
+T1,Treatment,/data/T1/quant.sf
+T2,Treatment,/data/T2/quant.sf

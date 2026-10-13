@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>小鼠 bulk RNA-seq 工作站</title><link rel="stylesheet" href="/static/style.css"></head><body>
+<header><small>本地分析 · Mus musculus · WSL2 / Ubuntu</small><h1>小鼠 bulk RNA-seq 工作站</h1><p>从 FASTQ 到表达量、差异基因和通路解读</p></header>
+<main><nav><a href="#inputs">① 样本与输入</a><a href="#analysis">② 分析设置</a><a href="#tasks">③ 任务与结果</a><a href="#figures">④ 图表编辑</a><a href="#guide">部署说明</a></nav>
+<div id="health" class="note">正在检查运行环境…</div><div id="error" role="alert" hidden></div>
+<form id="jobform"><section id="inputs"><h2>① 样本与输入</h2><p class="help">在 Ubuntu 中填写绝对路径。Windows D: 盘对应 /mnt/d/；建议把 FASTQ 和运行目录放在 WSL Linux 文件系统，避免跨盘 I/O 开销。</p><div class="grid">
+<label>任务名称<input id="name" value="小鼠差异表达分析" required></label><label>输入类型<select id="mode"><option value="fastq">FASTQ → Salmon → 完整分析</option><option value="salmon">已有 Salmon quant.sf</option><option value="counts">原始基因计数矩阵</option></select></label>
+<label class="full">样本表 CSV<input id="samples" placeholder="/home/你的用户名/rnaseq/samples.csv" required></label>
+<label class="counts full">原始计数 CSV<input id="counts" placeholder="首列 gene；其余列为样本名，非负整数"></label>
+<label class="fastq full">小鼠转录本 FASTA<input id="transcripts" placeholder="与 tx2gene 同一注释版本的 transcripts.fa 或 .fa.gz"></label>
+<label class="quant full">转录本 → Ensembl 基因映射 TSV<input id="tx2gene" placeholder="两列表头 transcript、gene"></label>
+<label class="fastq">文库链特异性<select id="library"><option>A</option><option>IU</option><option>ISR</option><option>ISF</option><option>U</option><option>SR</option><option>SF</option></select></label>
+<label>线程<input id="threads" type="number" min="1" max="8" value="4"></label></div>
+<p class="help">下载样本表模板：<a href="/static/templates/fastq_samples.csv" download>FASTQ</a> · <a href="/static/templates/salmon_samples.csv" download>Salmon</a> · <a href="/static/templates/counts_samples.csv" download>计数矩阵</a>（文件使用 UTF-8 编码）</p><details><summary>查看样本表格式</summary><pre>sample,group,fastq1,fastq2,batch
+C1,Control,/data/C1_R1.fastq.gz,/data/C1_R2.fastq.gz,B1
+C2,Control,/data/C2_R1.fastq.gz,/data/C2_R2.fastq.gz,B2
+T1,Treatment,/data/T1_R1.fastq.gz,/data/T1_R2.fastq.gz,B1
+T2,Treatment,/data/T2_R1.fastq.gz,/data/T2_R2.fastq.gz,B2</pre><p class="help">batch 可省略；单端去掉 fastq2 列。计数模式仅需 sample、group 和可选 batch；Salmon 模式使用 quant 列指向 quant.sf。本版一次对比两个分组，每组至少 2 个生物学重复，推荐 ≥3。</p></details>
+<button type="button" class="secondary" id="demo">填入合成演示数据</button><span class="help">仅用于程序验证，不代表真实生物学结果。</span></section>
+<section id="analysis"><h2>② 差异分析与通路</h2><div class="grid"><label>对照组<input id="control" value="Control" required></label><label>处理组<input id="treatment" value="Treatment" required></label><label>BH 校正 P 阈值<input id="alpha" type="number" value="0.05" min="0.000001" max="0.99" step="any"></label><label>|log₂ fold change| 阈值<input id="lfc" type="number" value="1" min="0" max="10" step="0.1"></label><label>GSEA 排列次数<input id="permutations" type="number" value="1000" min="100" max="10000"></label><label>GMT 基因 ID 类型<select id="gmt_id"><option value="ENSEMBL">Ensembl 基因 ID</option><option value="ENTREZID">Entrez / KEGG mouse gene ID（数字）</option><option value="SYMBOL">基因 Symbol</option></select></label><label class="full">离线小鼠注释 TSV（可选）<input id="annotation" placeholder="gene、symbol、entrez、go、ontology 五列；否则使用 org.Mm.eg.db"></label><label class="full">KEGG / Reactome / 自定义 GMT（可选）<input id="gmt" placeholder="/data/mouse_kegg.gmt；留空时分析 GO BP/CC/MF"></label></div>
+<div class="note">Salmon 使用 selective alignment、序列/GC 偏差校正；tximport 把转录本汇总到基因，DESeq2 使用长度偏移量。GO 使用小鼠 org.Mm.eg.db；GSEA 按 DESeq2 Wald 统计量排序，使用确定性基因集合排列。KEGG/GMT 使用实际检测到且能映射的基因作为背景。</div>
+<button type="submit" id="submit">创建分析任务</button></section></form>
+<section id="tasks"><div class="row"><h2>③ 任务与结果</h2><button id="refresh" class="secondary">刷新</button></div><div id="jobs"></div><div id="jobdetail" hidden><div class="row"><h3 id="stage"></h3><button class="secondary" id="cancel">取消任务</button><button class="secondary" id="retry" hidden>重试任务</button></div><pre id="log"></pre><div id="files" class="files"></div></div></section>
+<section id="figures"><h2>④ 图表编辑与导出</h2><p class="help">选中已完成的任务后，逐图调整标题、颜色、大小及阈值。每次重绘同时生成可编辑 SVG、矢量 PDF 和高分辨率 PNG，保留绘图数据和设置。</p><div id="gallery"></div></section>
+<section id="guide"><h2>本地部署</h2><p>在 Ubuntu / WSL2 中执行 <code>bash install.sh</code>，完成后执行 <code>bash launch.sh</code>。Windows 也可双击 <code>启动工作站.bat</code>（默认 Ubuntu-24.04）。Docker Desktop 需开启该 WSL 发行版集成；原生 Ubuntu 可使用 Docker Engine。</p><p>32GB 机器默认使用 4 线程和每个容器最多 24GB，任务按顺序执行。Docker 镜像和 Python 依赖准备完毕后可离线分析；FASTQ 模式仍需你提供匹配版本的参考转录本与 tx2gene。使用 Ensembl 小鼠基因 ID 可获得 GO 注释；KEGG 可使用你获准使用的 GMT，或运行 scripts/fetch_kegg.py 从 KEGG REST 构建。</p><p>安装、参考数据准备、链特异性和验证限制详见仓库 README.md。任务日志、计数矩阵、DESeq2 RDS、R 版本记录及绘图结果都保存在 runs/任务ID/。</p></section></main><script src="/static/app.js"></script></body></html>
