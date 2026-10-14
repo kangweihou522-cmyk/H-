@@ -15,16 +15,64 @@ function ConvertTo-NativeArgument {
     return '"'+$escaped+'"'
 }
 
+function ConvertFrom-WslBytes {
+    param([byte[]]$Bytes)
+    # wsl --list emits UTF-16LE on some Windows versions; Linux tools use UTF-8.
+    if ($Bytes.Length -ge 2 -and (($Bytes[0] -eq 255 -and $Bytes[1] -eq 254) -or $Bytes[1] -eq 0)) {
+        return [Text.Encoding]::Unicode.GetString($Bytes).TrimStart([char]0xfeff)
+    }
+    return [Text.Encoding]::UTF8.GetString($Bytes).TrimStart([char]0xfeff)
+}
+
 function Invoke-Wsl {
-    param([string[]]$WslArguments,[switch]$Capture,[switch]$AllowFailure)
-    $previousPreference=$ErrorActionPreference
-    $ErrorActionPreference='Continue'
+    param([string[]]$WslArguments,[switch]$Capture,[switch]$AllowFailure,[string]$Step='WSL 调用')
+    # Explicit CRT quoting avoids Windows PowerShell 5.1 native argument rewriting.
+    # Never merge stderr into paths/JSON: WSL startup warnings also use stderr.
+    $info=New-Object Diagnostics.ProcessStartInfo
+    $info.FileName=(Get-Command wsl.exe -CommandType Application -ErrorAction Stop).Source
+    $info.Arguments=($WslArguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
+    $info.UseShellExecute=$false
+    $info.RedirectStandardOutput=[bool]$Capture
+    $info.RedirectStandardError=[bool]$Capture
+    $process=New-Object Diagnostics.Process
+    $process.StartInfo=$info
+    $stdout=$null; $stderr=$null; $errorText=''; $outputText=''
     try {
-        if ($Capture) { $output=@(& wsl.exe @WslArguments 2>&1); $code=$LASTEXITCODE }
-        else { & wsl.exe @WslArguments; $code=$LASTEXITCODE }
-    } finally { $ErrorActionPreference=$previousPreference }
-    if (!$AllowFailure -and $code -ne 0) { throw "Ubuntu 操作失败（退出码 $code）。请查看上方报错，再运行「检查环境.bat」。" }
-    if ($Capture) { return [pscustomobject]@{ExitCode=$code;Text=($output | ForEach-Object { $_.ToString() }) -join "`n"} }
+        if (!$process.Start()) { throw '无法启动 wsl.exe。' }
+        if ($Capture) {
+            $stdout=New-Object IO.MemoryStream
+            $stderr=New-Object IO.MemoryStream
+            # Drain both pipes concurrently, including output larger than a pipe buffer.
+            $outTask=$process.StandardOutput.BaseStream.CopyToAsync($stdout)
+            $errTask=$process.StandardError.BaseStream.CopyToAsync($stderr)
+        }
+        $process.WaitForExit()
+        $code=$process.ExitCode
+        if ($Capture) {
+            $null=$outTask.GetAwaiter().GetResult(); $null=$errTask.GetAwaiter().GetResult()
+            $outputText=ConvertFrom-WslBytes $stdout.ToArray()
+            $errorText=ConvertFrom-WslBytes $stderr.ToArray()
+        }
+    } finally {
+        if ($stdout) { $stdout.Dispose() }; if ($stderr) { $stderr.Dispose() }; $process.Dispose()
+    }
+    if ($script:DiagnosticFile) {
+        $record=[pscustomobject]@{time=[DateTime]::Now.ToString('o');step=$Step;arguments=$WslArguments;exit_code=$code;stderr=$errorText}
+        $record | ConvertTo-Json -Compress | Add-Content -LiteralPath $script:DiagnosticFile -Encoding UTF8
+    }
+    if ($Capture -and $code -eq 0 -and $errorText.Trim() -and !$AllowFailure) {
+        if ($errorText -match '(?i)localhost.*(?:代理|proxy)') {
+            if (!$script:ProxyNoticeShown) {
+                Write-Host 'WSL 提示 Windows localhost 代理未转发；提示已与路径/配置输出分离。如后续下载失败，请查看日志中的网络报错。' -ForegroundColor Yellow
+                $script:ProxyNoticeShown=$true
+            }
+        } else { Write-Host $errorText.Trim() -ForegroundColor Yellow }
+    }
+    if (!$AllowFailure -and $code -ne 0) {
+        if ($Capture -and $errorText.Trim()) { Write-Host $errorText.Trim() -ForegroundColor Red }
+        throw "$Step 失败（退出码 $code）。WSL 命令：$($info.Arguments)。诊断日志：$script:DiagnosticFile"
+    }
+    if ($Capture) { return [pscustomobject]@{ExitCode=$code;Text=$outputText;Stderr=$errorText} }
 }
 
 function Select-Ubuntu {
@@ -47,8 +95,10 @@ function Get-WslPath {
         if ($Matches[1] -ne $SelectedDistro) { throw '源码位于另一 Ubuntu 发行版，请先将源码解压到普通 Windows 文件夹。' }
         return '/'+($Matches[2] -replace '\\','/')
     }
-    $result=Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','wslpath','-u',$WindowsPath.TrimEnd('\')) -Capture
-    return $result.Text.Trim()
+    $result=Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','wslpath','-u',$WindowsPath.TrimEnd('\')) -Capture -Step '转换 Windows 路径'
+    $path=$result.Text.Trim()
+    if (!$path.StartsWith('/') -or $path -match '[\r\n\x00]') { throw "WSL 返回了无效路径，尚未调用分析脚本。Windows 路径：$WindowsPath。诊断日志：$script:DiagnosticFile" }
+    return $path
 }
 
 function Ensure-Docker {
@@ -85,15 +135,15 @@ function Ensure-Docker {
 
 function Invoke-Helper {
     param($Config,[string]$Operation,[switch]$Capture)
-    $native=@('-d',$Config.distro,'--exec','bash',($Config.program_wsl+'/windows/wsl_entry.sh'),
+    $native=@('-d',$Config.distro,'--exec','/bin/bash','--',($Config.program_wsl+'/windows/wsl_entry.sh'),
               $Operation,$Config.root_wsl,$Config.program_wsl,$Config.venv_wsl,[string]$Config.port,$Config.root_windows)
-    return Invoke-Wsl -WslArguments $native -Capture:$Capture
+    return Invoke-Wsl -WslArguments $native -Capture:$Capture -Step ("工作站操作："+$Operation)
 }
 
 function Get-ServiceState {
     param($Config,[string]$Operation='probe')
     $result=Invoke-Wsl -WslArguments @('-d',$Config.distro,'--exec','python3',
-        ($Config.program_wsl+'/windows/station_runtime.py'),$Operation,$Config.root_wsl,[string]$Config.port) -Capture
+        ($Config.program_wsl+'/windows/station_runtime.py'),$Operation,$Config.root_wsl,[string]$Config.port) -Capture -Step ("检查服务："+$Operation)
     return $result.Text | ConvertFrom-Json
 }
 
@@ -122,7 +172,7 @@ function Start-Station {
         Write-Host '工作站已经运行，打开现有页面。'
     } else {
         Invoke-Helper $Config 'check'
-        $native=@('-d',$Config.distro,'--exec','bash',($Config.program_wsl+'/windows/wsl_entry.sh'),
+        $native=@('-d',$Config.distro,'--exec','/bin/bash','--',($Config.program_wsl+'/windows/wsl_entry.sh'),
                   'start',$Config.root_wsl,$Config.program_wsl,$Config.venv_wsl,[string]$Config.port,$Config.root_windows)
         $arguments=($native | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
         Start-Process -FilePath 'wsl.exe' -ArgumentList $arguments
@@ -188,14 +238,16 @@ function Install-Station {
     Ensure-Docker $SelectedDistro
     $sourceWsl=Get-WslPath $Source $SelectedDistro
     $rootWsl=Get-WslPath $Root $SelectedDistro
-    Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','bash',($sourceWsl+'/windows/wsl_entry.sh'),'prerequisites',$rootWsl,$sourceWsl)
+    Write-Host "Ubuntu：$SelectedDistro；源码：$sourceWsl；工作站：$rootWsl"
+    Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','test','-f',($sourceWsl+'/windows/wsl_entry.sh')) -Step '检查源码脚本路径'
+    Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','/bin/bash','--',($sourceWsl+'/windows/wsl_entry.sh'),'prerequisites',$rootWsl,$sourceWsl) -Step '准备 Ubuntu 依赖'
     if ($Existing) { $null=Get-ServiceState $Existing 'stop' }
     $prepared=Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','python3',($sourceWsl+'/windows/deploy.py'),
-        'prepare',$sourceWsl,$rootWsl,$Root,$SelectedDistro,[string]$SelectedPort) -Capture
+        'prepare',$sourceWsl,$rootWsl,$Root,$SelectedDistro,[string]$SelectedPort) -Capture -Step '准备工作站版本'
     $proposal=$prepared.Text | ConvertFrom-Json
     Invoke-Helper $proposal.config 'install'
     $activated=Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','python3',
-        ($proposal.config.program_wsl+'/windows/deploy.py'),'activate',$rootWsl,$proposal.plan_file) -Capture
+        ($proposal.config.program_wsl+'/windows/deploy.py'),'activate',$rootWsl,$proposal.plan_file) -Capture -Step '激活工作站版本'
     $config=$activated.Text | ConvertFrom-Json
     # Keep an Ubuntu command entry as well as the Windows desktop entry.
     $null=Invoke-Wsl -WslArguments @('-d',$SelectedDistro,'--exec','python3',
@@ -215,6 +267,9 @@ function Invoke-Workstation {
     if (!$root) { $root='D:\转录组分析工作站' }
     $root=[IO.Path]::GetFullPath($root)
     if (!(Test-Path -LiteralPath ([IO.Path]::GetPathRoot($root)))) { throw '没有找到目标磁盘，请检查 D 盘是否存在。' }
+    $logDir=Join-Path $root '日志'
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    $script:DiagnosticFile=Join-Path $logDir 'wsl-launcher.log'
     $file=Join-Path $root '配置\workstation.json'
     $existing=$null
     if (Test-Path -LiteralPath $file) {

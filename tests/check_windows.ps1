@@ -8,11 +8,14 @@ Assert-True ((ConvertTo-NativeArgument 'a"b') -ceq '"a\"b"') 'Embedded quote'
 Assert-True ((ConvertTo-NativeArgument 'C:\RNA seq\') -ceq '"C:\RNA seq\\"') 'Trailing backslash'
 Assert-True ((ConvertTo-NativeArgument '转录组 工作站') -ceq '"转录组 工作站"') 'Unicode whitespace'
 
-function wsl.exe {
-    $script:lastWslArgs=@($args)
-    $global:LASTEXITCODE=0
-    if ($args -contains '--list') { "Ubuntu-24.04`0`nUbuntu`0`ndocker-desktop`0" }
-    elseif ($args -contains 'wslpath') { '/mnt/d/转录组 工作站' }
+function Invoke-Wsl {
+    param($WslArguments,[switch]$Capture,[switch]$AllowFailure,[string]$Step)
+    $script:lastWslArgs=@($WslArguments)
+    $text=''
+    if ($WslArguments -contains '--list') { $text="Ubuntu-24.04`0`nUbuntu`0`ndocker-desktop`0" }
+    elseif ($WslArguments -contains 'wslpath') { $text='/mnt/d/转录组 工作站' }
+    if ($script:invalidPath) { $text="wsl: warning`n/mnt/d/root" }
+    return [pscustomobject]@{Text=$text;Stderr='wsl: proxy warning';ExitCode=0}
 }
 Assert-True ((Select-Ubuntu '') -eq 'Ubuntu-24.04') 'Ubuntu selection'
 Assert-True ((Select-Ubuntu 'Ubuntu') -eq 'Ubuntu') 'Explicit Ubuntu selection'
@@ -22,6 +25,10 @@ Assert-True ((Get-WslPath '\\wsl.localhost\Ubuntu-24.04\home\user' 'Ubuntu-24.04
 $path="D:\RNAseq data\O'Brien"
 $null=Get-WslPath $path 'Ubuntu-24.04'
 Assert-True ($script:lastWslArgs[-1] -ceq $path) 'Paths passed as a single native argument'
+$script:invalidPath=$true;$rejected=$false
+try { Get-WslPath $path 'Ubuntu-24.04' } catch {$rejected=$true}
+Assert-True $rejected 'Multiline/contaminated path rejected before bash'
+$script:invalidPath=$false
 
 function Ensure-Docker { param($SelectedDistro) }
 function Invoke-Helper { param($Config,$Operation,[switch]$Capture); $script:helper=$Operation }
@@ -39,4 +46,5 @@ $script:state=@{state='offline'};$script:starts=@()
 Start-Station $config
 Assert-True ($script:starts.Count -eq 2 -and $script:starts[0].File -eq 'wsl.exe') 'New service plus browser'
 Assert-True ($script:starts[0].Arguments.Contains('"/mnt/d/转录组 工作站/程序/version/windows/wsl_entry.sh"')) 'Quoted Chinese/space script path'
+Assert-True ($script:starts[0].Arguments.Contains('"/bin/bash" "--"')) 'Absolute bash with option terminator'
 "PASS: $script:count PowerShell launcher checks (WSL/native process calls mocked; no Windows desktop VM)"

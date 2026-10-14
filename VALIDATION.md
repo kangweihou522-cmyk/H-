@@ -92,3 +92,9 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 完整验证发现并修复Rscript在--file中将空格编码成~+~的兼容问题：应用向容器传递准确的RNASEQ_SCRIPT_DIR，直接R调用保留解码后备；复用已完成的定量重试统计/图表后完成。pytest指定正式tests目录，避免部署副本被重复收集。
 - Chromium验证新部署结果、双方案卡片、工作站/结果目录显示、MultiQC入口、手机布局与无JavaScript异常通过。
 - **未运行Windows桌面或WSL2 VM**：COM桌面快捷方式、真实wsl.exe参数桥接、Windows localhost转发、Docker Desktop UI和首次sudo交互，需要在你的电脑执行部署入口后确认。没有直接写入用户电脑D盘。核心程序/结果的Linux路径验证不能替代Windows实机部署。
+
+## 首次部署启动器修复（2026-10-14）
+
+- 针对用户在「部署到D盘.bat」遇到代理警告和退出码126，确认并复现旧启动器将WSL标准错误混入路径的缺陷。此复现确认输出污染，没有在Windows上重现完整的`/usr/bin/w`失败链。
+- WSL调用使用ProcessStartInfo和明确的CRT参数引用，标准输出/标准错误并行独立读取，兼容UTF-16LE发行版列表。路径必须为单行绝对路径；先检查源码脚本，再以`/bin/bash --`调用。失败包含步骤、参数及D盘诊断日志。
+- 15项PowerShell逻辑检查通过；另以真实Linux可执行文件替代wsl.exe，验证中文/空格/空参数/引号/尾部反斜杠/字面shell字符、代理警告与路径隔离、UTF-16LE列表、20万字符双管道、126退出码、诊断记录及非捕获调用继承stdin。执行方法：安装PowerShell后`bash tests/check_windows_native.sh`；这是Linux进程传输测试，仍不构成Windows/WSL2实机验证。
