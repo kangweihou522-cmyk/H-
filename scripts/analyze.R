@@ -2,7 +2,9 @@ suppressPackageStartupMessages({library(DESeq2);library(tximport);library(GO.db)
 a <- commandArgs(TRUE);root<-a[1];cfg<-fromJSON(file.path(root,'config.json'),simplifyVector=FALSE)
 if(is.null(cfg$deg_profile))cfg$deg_profile<-'strict'
 script <- sub('^--file=','',grep('^--file=',commandArgs(),value=TRUE))
-source(file.path(dirname(script),'enrichment.R'));source(file.path(dirname(script),'mining.R'))
+# Rscript encodes spaces as ~+~ in --file. The app supplies the exact mounted path.
+script_dir<-Sys.getenv('RNASEQ_SCRIPT_DIR',unset=dirname(gsub('~+~',' ',script,fixed=TRUE)))
+source(file.path(script_dir,'enrichment.R'));source(file.path(script_dir,'mining.R'))
 m<-read.csv(file.path(root,'samples.csv'),check.names=FALSE,stringsAsFactors=FALSE);rownames(m)<-m$sample
 m$group<-relevel(factor(m$group),cfg$control)
 for(c in cfg$covariates)m[[c$name]]<-if(c$type=='numeric')as.numeric(m[[c$name]]) else factor(m[[c$name]])

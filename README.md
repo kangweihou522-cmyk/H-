@@ -4,6 +4,11 @@
 
 页面按样本设计、测序质控、表达诊断、差异、富集、通路/基因、网络/表型、报告八步组织。流程和图表改进参考用户报告正文，以及 nf-core、MultiQC、DESeq2、fgsea、GSVA、WGCNA、decoupleR、EnhancedVolcano、ComplexHeatmap、ideal 等成熟项目；具体采用与借鉴范围见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。用户报告和真实客户数据不包含在仓库里。
 
+
+## Windows D 盘一键部署
+
+下载并全部解压新版源码，双击 **部署到D盘.bat**，创建 **D:\转录组分析工作站** 和桌面快捷方式。以后双击 **启动工作站.bat**，或在 Ubuntu 执行 `bash ~/启动转录组工作站.sh`；默认端口8767，避免与16S的8765冲突。程序/分析结果在D盘，Python环境在Ubuntu，Docker存储保持现有设置。[首次部署、每天启动、固定目录与更新](docs/WINDOWS_D_DRIVE.md)。
+
 ## 升级已有工作站
 
 先在旧服务终端 Ctrl+C 停止服务，再在 WSL 的项目目录执行：
@@ -37,7 +42,7 @@ bash scripts/install_mouse_annotation.sh
 bash launch.sh
 ```
 
-安装完成后在本机浏览器打开 `http://localhost:8765`。Windows 可双击 `启动工作站.bat`，默认发行版为 Ubuntu-24.04；不同发行版可设置 `WSL_DISTRO`，用 `wsl -l -q` 查看实际名称。
+安装完成后在本机浏览器打开 `http://localhost:8765`。Windows 新的一键入口先运行 `部署到D盘.bat`；之后双击D盘的 `启动工作站.bat`，自动选择已安装Ubuntu并打开网页。直接在Ubuntu安装的方式继续使用 `bash launch.sh`。不同发行版可设置 `WSL_DISTRO`，用 `wsl -l -q` 查看实际名称。
 
 默认4线程、容器内存上限24GB，界面允许1–8线程、4–28GB；任务串行，避免多个项目同时耗尽32GB内存。WSL 可选 `%UserProfile%\.wslconfig`：
 

@@ -1,0 +1,7 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.R text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.tar.gz binary
+*.png binary

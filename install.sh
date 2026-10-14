@@ -3,8 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 command -v python3 >/dev/null || { echo '请先安装 python3 python3-venv'; exit 1; }
 sha256sum -c vendor/SHA256SUMS
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+rnaseq_venv="${RNASEQ_VENV:-$PWD/.venv}"
+python3 -m venv "$rnaseq_venv"
+"$rnaseq_venv/bin/pip" install -r requirements.txt
 command -v docker >/dev/null || { echo '请先安装 Docker 并启动服务'; exit 1; }
 docker info >/dev/null
 source scripts/build_options.sh

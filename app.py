@@ -1,12 +1,13 @@
 """Local mouse bulk RNA-seq workstation, version 2."""
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-import json, os, re, shutil, signal, subprocess, threading, time, uuid, hashlib
+import json, os, re, shutil, signal, subprocess, threading, time, uuid, hashlib, sys
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, send_from_directory, abort, send_file
 from validation import validate, local_file, local_path, read_table
 ROOT = Path(__file__).resolve().parent
+STATION_ROOT = Path(os.environ.get('RNASEQ_HOME', ROOT)).resolve()
 RUNS = Path(os.environ.get('RNASEQ_RUNS', ROOT/'runs')).resolve()
 RUNS.mkdir(parents=True, exist_ok=True)
 app = Flask(__name__, static_folder='static')
@@ -56,6 +57,7 @@ def command(p, args, mounts=(), analysis_tool=True):
                '--cpus', str(cfg['threads']), '--memory', str(cfg['memory'])+'g',
                '--user', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
                '-e', 'OPENBLAS_NUM_THREADS=1', '-e', 'OMP_NUM_THREADS=1',
+               '-e', f'RNASEQ_SCRIPT_DIR={ROOT}/scripts',
                '-v', f'{p}:{p}', '-v', f'{ROOT}/scripts:{ROOT}/scripts:ro']
         for directory in sorted({str(Path(f).resolve().parent) for f in mounts}):
             if directory != str(p): cmd += ['-v', f'{directory}:{directory}:ro']
@@ -77,6 +79,10 @@ def command(p, args, mounts=(), analysis_tool=True):
     if p.name in cancelled: raise RuntimeError('任务已取消')
 
 def source_version():
+    manifest=ROOT/'.source-manifest.json'
+    if manifest.is_file():
+        files=json.loads(manifest.read_text())
+        return 'source-sha256:'+hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
     if not shutil.which('git'): return 'v2.0 release archive'
     result=subprocess.run(['git','-C',str(ROOT),'rev-parse','HEAD'],capture_output=True,text=True)
     return result.stdout.strip() if result.returncode==0 else 'v2.0 release archive'
@@ -165,7 +171,7 @@ def execute(p):
         for entry in chart_catalog(p):
             target=contrast_path(p,entry.get('contrast'))
             with render_lock: render(target,entry['kind'],{})
-        multiqc=ROOT/'.venv/bin/multiqc'
+        multiqc=Path(sys.executable).parent/'multiqc'
         if cfg['mode']=='fastq' and multiqc.is_file():
             command(p,[str(multiqc),str(p/'qc'),str(p/'quant'),'-o',str(p/'multiqc'),'--force','--no-ansi','--quiet'],analysis_tool=False)
         from results import build_report
@@ -201,12 +207,12 @@ def index(): return send_from_directory(ROOT/'static','index.html')
 @app.get('/api/health')
 def health():
     image=subprocess.run(['docker','image','inspect','mouse-rnaseq:2'],capture_output=True).returncode==0 if shutil.which('docker') else False
-    return jsonify(version='2.0',browse_root=str(ROOT.parent),python=True,docker_image=image,salmon=bool(shutil.which('salmon')),Rscript=bool(shutil.which('Rscript')),run_dir=str(RUNS))
+    return jsonify(service_id='mouse-bulk-rnaseq',version='2.0',browse_root=str(STATION_ROOT if os.environ.get('RNASEQ_HOME') else ROOT.parent),python=True,docker_image=image,salmon=bool(shutil.which('salmon')),Rscript=bool(shutil.which('Rscript')),run_dir=str(RUNS),program_dir=str(ROOT),station_dir=str(STATION_ROOT),windows_dir=os.environ.get('RNASEQ_WINDOWS_HOME',''),python_environment=sys.prefix,pid=os.getpid())
 
 @app.get('/api/files')
 def browse():
-    roots=[Path.home(),ROOT.parent,Path('/mnt'),Path('/data')]
-    p=local_path(request.args.get('path',str(ROOT.parent)))
+    roots=[Path.home(),STATION_ROOT,ROOT.parent,Path('/mnt'),Path('/data')]
+    p=local_path(request.args.get('path',str(STATION_ROOT if os.environ.get('RNASEQ_HOME') else ROOT.parent)))
     if not any(p==r or p.is_relative_to(r) for r in roots): raise ValueError('请浏览 home、workspace、mnt 或 data 目录')
     if not p.is_dir(): raise ValueError('目录不存在')
     entries=[]

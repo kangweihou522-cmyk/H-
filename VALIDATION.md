@@ -6,7 +6,7 @@
 
 - `bash install.sh` 实际完成并再次执行成功，构建 `mouse-rnaseq:2-core` / `mouse-rnaseq:2`。镜像中的 DESeq2、tximport、GO.db、jsonlite、fgsea 1.24.0、GSVA 1.46、limma、WGCNA 1.72.1、decoupleR 2.4.0 实际加载通过。稳定源码和本地 Plotly 的 SHA256 校验通过，签名/TLS 保持开启。
 - 服务实际启动、停止、重新启动；健康检查、任务读取、文件下载、错误响应通过。
-- **17 项 pytest**：原始计数约束、样本名/路径保护、组重复数、批次混杂、多组比较、数值协变量、样本排除后复查、Windows/file URI 转换、TSV 格式 xls、GMT、Origin/Host 保护、PCA/导出、GSEA 加权运行曲线、极小 P/NA 表格、缺失 Entrez 条件下基因查询、全 NA padj 时表达图、R 特有 WGCNA 颜色导出。
+- **24 项 pytest**：原始计数约束、样本名/路径保护、组重复数、批次混杂、多组比较、数值协变量、样本排除后复查、Windows/file URI 转换、TSV 格式 xls、GMT、Origin/Host 保护、PCA/导出、GSEA 加权运行曲线、极小 P/NA 表格、缺失 Entrez 条件下基因查询、全 NA padj 时表达图、R 特有 WGCNA 颜色导出。
 - Python、JavaScript、Shell 语法与 Git 空白检查通过。
 
 ## 真实工具端到端（本地合成输入）
@@ -82,3 +82,13 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 本地服务需持续运行；云环境配置草稿不等于已发布快照，Docker/网页进程不会跨任务自动保留。
 
 `runs/`、依赖环境、镜像、客户报告与数据均不进入源码提交。
+
+## D 盘部署入口验证（2026-10-14）
+
+- 24项Python检查包含新增7项：准备/激活事务、重复部署、保留数据/旧版本、保护修改过的启动文件、并发版本切换、中文/空格/引号与shell特殊字符、Ubuntu入口跟随当前版本、其他服务/PID重用保护、未结束分析拒绝更新。
+- 使用官方 PowerShell 7.4.6 运行时（官方发布SHA256已核对）解析Windows脚本；13项WSL选择、原生参数引号、UNC路径、现有服务、端口归属与新窗口/浏览器调用检查通过。这些wsl.exe/浏览器调用被模拟，没有宣称Windows实机通过。另实际运行.NET ZIP解压，验证合法源码与拒绝路径穿越，下载调用模拟。
+- 在Linux的中文/空格目录模拟D盘层级，实际安装独立于程序目录的Python环境、复用Docker构建、激活版本、健康/目录检查、启动、只停止本工作站空闲进程、保留结果并切换新版本通过。
+- 从该部署路径运行6样本合成FASTQ的真实fastp、Salmon、tximport、DESeq2、GO/GMT ORA、fgsea、ssGSEA与图表报告；最终nominal88、strict80，6份quant.sf齐全。实际MultiQC由外部venv/bin/multiqc执行，报告HTML和结果ZIP完整性通过；WGCNA小样本明确跳过。
+- 完整验证发现并修复Rscript在--file中将空格编码成~+~的兼容问题：应用向容器传递准确的RNASEQ_SCRIPT_DIR，直接R调用保留解码后备；复用已完成的定量重试统计/图表后完成。pytest指定正式tests目录，避免部署副本被重复收集。
+- Chromium验证新部署结果、双方案卡片、工作站/结果目录显示、MultiQC入口、手机布局与无JavaScript异常通过。
+- **未运行Windows桌面或WSL2 VM**：COM桌面快捷方式、真实wsl.exe参数桥接、Windows localhost转发、Docker Desktop UI和首次sudo交互，需要在你的电脑执行部署入口后确认。没有直接写入用户电脑D盘。核心程序/结果的Linux路径验证不能替代Windows实机部署。
