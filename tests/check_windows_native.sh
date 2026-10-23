@@ -6,4 +6,6 @@ shim="$(mktemp -d /tmp/rnaseq-wsl-native.XXXXXXXX)"
 trap 'rm -rf -- "$shim"' EXIT
 cp "$here/fixtures/wsl_shim.py" "$shim/wsl.exe"
 chmod +x "$shim/wsl.exe"
-printf ABC | PATH="$shim:$PATH" "$rnaseq_pwsh" -NoLogo -NoProfile -File "$here/check_windows_native.ps1"
+mkdir "$shim/second"
+cp "$shim/wsl.exe" "$shim/second/wsl.exe"
+printf ABC | PATH="$shim:$shim/second:$PATH" "$rnaseq_pwsh" -NoLogo -NoProfile -File "$here/check_windows_native.ps1"

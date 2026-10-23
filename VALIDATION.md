@@ -98,3 +98,9 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 针对用户在「部署到D盘.bat」遇到代理警告和退出码126，确认并复现旧启动器将WSL标准错误混入路径的缺陷。此复现确认输出污染，没有在Windows上重现完整的`/usr/bin/w`失败链。
 - WSL调用使用ProcessStartInfo和明确的CRT参数引用，标准输出/标准错误并行独立读取，兼容UTF-16LE发行版列表。路径必须为单行绝对路径；先检查源码脚本，再以`/bin/bash --`调用。失败包含步骤、参数及D盘诊断日志。
 - 15项PowerShell逻辑检查通过；另以真实Linux可执行文件替代wsl.exe，验证中文/空格/空参数/引号/尾部反斜杠/字面shell字符、代理警告与路径隔离、UTF-16LE列表、20万字符双管道、126退出码、诊断记录及非捕获调用继承stdin。执行方法：安装PowerShell后`bash tests/check_windows_native.sh`；这是Linux进程传输测试，仍不构成Windows/WSL2实机验证。
+
+## 多个WSL入口导致Start异常（2026-10-23）
+
+- 实际复现：PATH中存在两个wsl.exe时，`Get-Command -CommandType Application`返回两项，旧版将`.Source`数组转成一个含两条路径的FileName；Process.Start报找不到文件。选择单个可执行文件后相同场景通过。Windows优先系统入口，32位宿主优先Sysnative；后台启动使用相同解析函数，启动异常也记录文件路径。
+- PowerShell检查新增双入口回归场景。仍在Linux运行PowerShell及可执行WSL替身，没有Windows/WSL2虚拟机；未宣称Windows系统路径分支已在实机验证。
+- 参考16s-的Ubuntu直接启动方式，增加可选`部署到D盘.sh`，复用已有准备/安装/激活事务；Ubuntu快捷脚本直接运行Bash，不再转回PowerShell。验证配置激活、安装失败保留旧版本和数据，以及存在故障Windows命令时Ubuntu启动仍工作。日常Windows双击入口继续保留。

@@ -2,6 +2,7 @@
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 import subprocess
 import threading
 import pytest
@@ -76,12 +77,23 @@ def test_concurrent_activation_and_running_analysis_are_blocked(station):
     with pytest.raises(ValueError,match='未结束'):stage(source,root)
 
 
-def test_ubuntu_entry_handles_unicode_shell_characters_and_tracks_current_version(station,tmp_path):
+def test_ubuntu_entry_handles_unicode_shell_characters_and_tracks_current_version(station,tmp_path,monkeypatch):
     source,root=station
     source.joinpath('windows/wsl_entry.sh').write_text('#!/usr/bin/env bash\npython3 -c \'import sys,json;print(json.dumps(sys.argv[1:]))\' "$@"\n')
     first=stage(source,root);activate(root,first['plan_file'])
     home=tmp_path/'Ubuntu home';home.mkdir()
+    # Windows interoperability may be installed but broken: direct Ubuntu must still work.
+    bin_dir=tmp_path/'bin';bin_dir.mkdir()
+    for name in ['powershell.exe','wslpath']:
+        fake=bin_dir/name;fake.write_text('#!/bin/sh\nexit 87\n');fake.chmod(0o755)
+    monkeypatch.setenv('PATH',str(bin_dir)+os.pathsep+os.environ['PATH'])
     entry=create(root,home)
+    direct=entry.read_text()
+    old_bridge=('if command -v powershell.exe >/dev/null && command -v wslpath >/dev/null; then\n'
+                '  exec powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$RNASEQ_STATION/station.ps1")" -Action Start\n'
+                'fi\n')
+    entry.write_text(direct.replace('mapfile -t rnaseq_paths',old_bridge+'mapfile -t rnaseq_paths',1))
+    assert create(root,home)==entry and entry.read_text()==direct
     args=json.loads(subprocess.check_output(['bash',str(entry)],text=True))
     assert args[1]==str(root) and args[2]==first['config']['program_wsl']
     assert not (tmp_path/'WRONG').exists()
@@ -93,6 +105,37 @@ def test_ubuntu_entry_handles_unicode_shell_characters_and_tracks_current_versio
     entry.write_text('USER SHORTCUT')
     replacement=create(root,home)
     assert entry.read_text()=='USER SHORTCUT' and replacement!=entry
+
+
+def test_ubuntu_install_activates_same_layout_without_windows_interop(station,monkeypatch):
+    from windows import ubuntu_deploy
+    source,root=station
+    calls=[];entries=[]
+    monkeypatch.setattr(ubuntu_deploy.shutil,'which',lambda name: '/usr/bin/docker' if name=='docker' else None)
+    monkeypatch.setattr(ubuntu_deploy.subprocess,'run',lambda argv,**kwargs:calls.append(argv))
+    monkeypatch.setattr(ubuntu_deploy,'create',lambda path:entries.append(path))
+    config=ubuntu_deploy.install(source,root,8877)
+    assert read_config(root)['port']==8877 and entries==[root]
+    assert (root/'启动工作站.bat').exists() and Path(config['program_wsl']).exists()
+    assert [call[0] for call in calls]==['docker','bash','bash']
+    assert calls[-1][2]=='install' and calls[-1][3]==str(root)
+
+
+def test_ubuntu_install_failure_preserves_active_version_and_data(station,monkeypatch):
+    from windows import ubuntu_deploy
+    source,root=station
+    first=stage(source,root);activate(root,first['plan_file'])
+    data=root/'分析结果/keep.txt';data.write_text('MY DATA')
+    source.joinpath('app.py').write_text('new version')
+    calls=[]
+    monkeypatch.setattr(ubuntu_deploy.shutil,'which',lambda name: '/usr/bin/docker' if name=='docker' else None)
+    monkeypatch.setattr(ubuntu_deploy,'stop',lambda *args:calls.append(args))
+    def run(argv,**kwargs):
+        if len(argv)>2 and argv[2]=='install':raise subprocess.CalledProcessError(1,argv)
+    monkeypatch.setattr(ubuntu_deploy.subprocess,'run',run)
+    with pytest.raises(subprocess.CalledProcessError):ubuntu_deploy.install(source,root)
+    assert read_config(root)['program_wsl']==first['config']['program_wsl']
+    assert data.read_text()=='MY DATA' and calls==[(root,8767)]
 
 
 @pytest.fixture

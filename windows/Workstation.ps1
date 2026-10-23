@@ -15,6 +15,23 @@ function ConvertTo-NativeArgument {
     return '"'+$escaped+'"'
 }
 
+function Get-WslExecutable {
+    # Get-Command -CommandType Application can return multiple PATH matches.
+    # Passing their .Source array to FileName joins them into an invalid filename.
+    if ($env:OS -eq 'Windows_NT' -and $env:SystemRoot) {
+        $folders=@('System32')
+        if ([Environment]::Is64BitOperatingSystem -and ![Environment]::Is64BitProcess) { $folders=@('Sysnative','System32') }
+        foreach ($folder in $folders) {
+            $candidate=Join-Path $env:SystemRoot ($folder+'\wsl.exe')
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+        }
+    }
+    foreach ($command in @(Get-Command wsl.exe -CommandType Application -ErrorAction SilentlyContinue)) {
+        if ($command.Path -and (Test-Path -LiteralPath $command.Path -PathType Leaf)) { return [string]$command.Path }
+    }
+    throw '未找到可执行的 wsl.exe。请检查 Windows 的 WSL 安装。'
+}
+
 function ConvertFrom-WslBytes {
     param([byte[]]$Bytes)
     # wsl --list emits UTF-16LE on some Windows versions; Linux tools use UTF-8.
@@ -29,7 +46,7 @@ function Invoke-Wsl {
     # Explicit CRT quoting avoids Windows PowerShell 5.1 native argument rewriting.
     # Never merge stderr into paths/JSON: WSL startup warnings also use stderr.
     $info=New-Object Diagnostics.ProcessStartInfo
-    $info.FileName=(Get-Command wsl.exe -CommandType Application -ErrorAction Stop).Source
+    $info.FileName=Get-WslExecutable
     $info.Arguments=($WslArguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
     $info.UseShellExecute=$false
     $info.RedirectStandardOutput=[bool]$Capture
@@ -38,7 +55,15 @@ function Invoke-Wsl {
     $process.StartInfo=$info
     $stdout=$null; $stderr=$null; $errorText=''; $outputText=''
     try {
-        if (!$process.Start()) { throw '无法启动 wsl.exe。' }
+        try {
+            if (!$process.Start()) { throw '无法启动 wsl.exe。' }
+        } catch {
+            $detail=$_.Exception.GetBaseException().Message
+            if ($script:DiagnosticFile) {
+                [pscustomobject]@{time=[DateTime]::Now.ToString('o');step=$Step;executable=$info.FileName;arguments=$WslArguments;start_error=$detail} | ConvertTo-Json -Compress | Add-Content -LiteralPath $script:DiagnosticFile -Encoding UTF8
+            }
+            throw "$Step 无法启动。可执行文件：$($info.FileName)。原因：$detail。诊断日志：$script:DiagnosticFile"
+        }
         if ($Capture) {
             $stdout=New-Object IO.MemoryStream
             $stderr=New-Object IO.MemoryStream
@@ -175,7 +200,7 @@ function Start-Station {
         $native=@('-d',$Config.distro,'--exec','/bin/bash','--',($Config.program_wsl+'/windows/wsl_entry.sh'),
                   'start',$Config.root_wsl,$Config.program_wsl,$Config.venv_wsl,[string]$Config.port,$Config.root_windows)
         $arguments=($native | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
-        Start-Process -FilePath 'wsl.exe' -ArgumentList $arguments
+        Start-Process -FilePath (Get-WslExecutable) -ArgumentList $arguments
         $null=Get-ServiceState $Config 'wait'
     }
     Assert-WindowsService $Config
@@ -262,7 +287,7 @@ function Invoke-Workstation {
     $ErrorActionPreference='Stop'
     [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
     $OutputEncoding=[Console]::OutputEncoding
-    if (!(Get-Command wsl.exe -ErrorAction SilentlyContinue)) { throw '未找到 WSL。请先安装 WSL2 Ubuntu 24.04。' }
+    Write-Host ('WSL：'+(Get-WslExecutable))
     $root=$InstallRoot
     if (!$root) { $root='D:\转录组分析工作站' }
     $root=[IO.Path]::GetFullPath($root)

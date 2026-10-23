@@ -30,6 +30,7 @@ try { Get-WslPath $path 'Ubuntu-24.04' } catch {$rejected=$true}
 Assert-True $rejected 'Multiline/contaminated path rejected before bash'
 $script:invalidPath=$false
 
+function Get-WslExecutable { return 'wsl.exe' }
 function Ensure-Docker { param($SelectedDistro) }
 function Invoke-Helper { param($Config,$Operation,[switch]$Capture); $script:helper=$Operation }
 function Start-Process { param($FilePath,$ArgumentList); $script:starts+=@([pscustomobject]@{File=$FilePath;Arguments=$ArgumentList}) }

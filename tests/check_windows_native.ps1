@@ -5,7 +5,13 @@ $ErrorActionPreference='Stop'
 . $Driver -FunctionsOnly
 $script:count=0
 function Assert-True { param($Value,[string]$Message); if (!$Value) { throw $Message }; $script:count++ }
-$shim=(Get-Command wsl.exe -CommandType Application).Source
+$matches=@(Get-Command wsl.exe -CommandType Application)
+Assert-True ($matches.Count -ge 2) 'Regression setup has multiple wsl.exe matches'
+$shim=Get-WslExecutable
+Assert-True ($shim -is [string] -and $shim -ceq $matches[0].Path) 'Exactly one executable is selected'
+$oldInfo=New-Object Diagnostics.ProcessStartInfo
+$oldInfo.FileName=$matches.Source
+Assert-True (!(Test-Path -LiteralPath $oldInfo.FileName)) 'Previous array conversion produced nonexistent filename'
 Assert-True ($shim -match 'rnaseq-wsl-native') 'Test must use an isolated fake wsl executable'
 $result=Invoke-Wsl -WslArguments @('--list','--quiet') -Capture
 Assert-True (@($result).Count -eq 1) 'No async task objects leak into function output'
