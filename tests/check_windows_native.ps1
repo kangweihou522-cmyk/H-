@@ -13,6 +13,17 @@ $oldInfo=New-Object Diagnostics.ProcessStartInfo
 $oldInfo.FileName=$matches.Source
 Assert-True (!(Test-Path -LiteralPath $oldInfo.FileName)) 'Previous array conversion produced nonexistent filename'
 Assert-True ($shim -match 'rnaseq-wsl-native') 'Test must use an isolated fake wsl executable'
+$raw=(@('--list','--quiet') | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
+Assert-True ($raw -ceq '--list --quiet') 'Raw Windows command line has bare WSL flags'
+$raw=(@('-d','Ubuntu-24.04','--exec','/bin/echo','hello world') | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
+Assert-True ($raw -ceq '-d Ubuntu-24.04 --exec /bin/echo "hello world"') 'Only exec payload needs CRT quotes'
+$legacy=[Text.Encoding]::Unicode.GetBytes("Ubuntu-24.04`n")
+Assert-True ((ConvertFrom-WslBytes $legacy) -ceq "Ubuntu-24.04`n") 'Legacy UTF16 remains supported'
+$previousUtf8=$env:WSL_UTF8
+$encoded=Invoke-Wsl -WslArguments @('encoding-probe') -Capture
+Assert-True (($encoded.Text | ConvertFrom-Json).WSL_UTF8 -eq '1') 'WSL native output forced to UTF8 in child'
+Assert-True ($encoded.Stderr -match 'localhost.*代理' -and $encoded.Stderr -match '/bin/bash: line 1: --list: command not found') 'WSL warning and Linux stderr decoded together'
+Assert-True ($env:WSL_UTF8 -ceq $previousUtf8) 'Parent environment remains untouched'
 $result=Invoke-Wsl -WslArguments @('--list','--quiet') -Capture
 Assert-True (@($result).Count -eq 1) 'No async task objects leak into function output'
 Assert-True ($result.Text -ceq "Ubuntu-24.04`nUbuntu`n") 'UTF16LE list decoded'

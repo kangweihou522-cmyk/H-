@@ -18,6 +18,8 @@
 
 旧启动器将标准错误合并到标准输出，WSL启动警告可能混入 `wslpath` 的返回路径或JSON。新版分开读取两条输出、明确引用每个原生参数、检查路径及脚本存在性，并显示具体失败阶段。代理警告本身不等于Ubuntu启动失败；即使路径读取正常，NAT模式下Ubuntu仍可能无法使用Windows的localhost代理，需要根据实际下载报错处理网络。
 
+如果失败命令显示为 `"--list" "--quiet"`，退出码127，或乱码还原后为 `--list: command not found`，也是旧启动器的参数问题。WSL管理选项需要保持裸参数，不能把每一项都加引号；新版仅对需要引用的路径/参数加引号。启动器子进程设置`WSL_UTF8=1`，使WSL警告与Linux错误使用相同编码。可先在Windows PowerShell直接运行 `wsl.exe --list --verbose`、`wsl.exe -d Ubuntu-24.04 --exec /bin/echo UBUNTU_OK`、`wsl.exe -d Ubuntu-24.04 --exec docker info --format '{{.ServerVersion}}'`，确认本机这三层是否工作，再对启动器做定点修复。
+
 新版调用诊断保存在 **D:\转录组分析工作站\日志\wsl-launcher.log**，包含失败步骤、参数、退出码和标准错误。若仍失败，可提供失败窗口最后几行及此日志末尾相应记录（分享前隐藏私人路径/信息）。我们没有在Windows实机上复现该退出码，因此修复已确认的输出污染缺陷后，仍需以你电脑的重试结果确认。
 
 ## 每天打开

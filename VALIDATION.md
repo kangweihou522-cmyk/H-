@@ -104,3 +104,10 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 实际复现：PATH中存在两个wsl.exe时，`Get-Command -CommandType Application`返回两项，旧版将`.Source`数组转成一个含两条路径的FileName；Process.Start报找不到文件。选择单个可执行文件后相同场景通过。Windows优先系统入口，32位宿主优先Sysnative；后台启动使用相同解析函数，启动异常也记录文件路径。
 - PowerShell检查新增双入口回归场景。仍在Linux运行PowerShell及可执行WSL替身，没有Windows/WSL2虚拟机；未宣称Windows系统路径分支已在实机验证。
 - 参考16s-的Ubuntu直接启动方式，增加可选`部署到D盘.sh`，复用已有准备/安装/激活事务；Ubuntu快捷脚本直接运行Bash，不再转回PowerShell。验证配置激活、安装失败保留旧版本和数据，以及存在故障Windows命令时Ubuntu启动仍工作。日常Windows双击入口继续保留。
+
+## WSL选项与输出编码修复（2026-10-24）
+
+- 用户实机直接调用确认：Ubuntu-24.04为WSL2，`/bin/echo UBUNTU_OK`成功，Docker服务版本29.1.3。当前127错误属于启动器参数传递；这些检查没有证明后续下载或全部依赖安装完成。
+- 对照Microsoft/WSL提交`4d85ce8dcbcf8091a66da89fd777d0b0cc96d685`：`src/windows/common/helpers.cpp`中的ParseArgument保留引号；WslClient.cpp直接匹配管理选项，只有识别裸`--exec`后才以CommandLineToArgvW解析剩余内容。旧版`"--list" "--quiet"`会落入默认Shell，产生用户报告的命令不存在。现在简单参数不加引号，需要引号的exec路径及参数继续使用CRT规则。
+- WslClient.cpp支持子进程环境`WSL_UTF8=1`，用于统一WSL本身与Linux输出为UTF-8。保留旧版UTF-16列表后备，父进程环境不变。已从用户乱码还原出`/bin/bash: line 1: --list: command not found`。
+- 17项PowerShell逻辑检查、33项Linux真实进程/管道检查通过，新增原始Windows命令行格式、UTF-8作用域及WSL警告与Linux错误同时解码检查。先前Linux argv替身会先去掉引号，无法发现WSL的原始命令行解析问题；新增原始字符串检查补齐这一缺口。没有Windows/WSL2 VM，实机完整部署仍以用户执行为准。

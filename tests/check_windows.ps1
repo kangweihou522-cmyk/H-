@@ -3,6 +3,8 @@ $ErrorActionPreference='Stop'
 . $Driver -FunctionsOnly
 $script:count=0
 function Assert-True { param($Value,[string]$Message); if (!$Value) { throw $Message }; $script:count++ }
+Assert-True ((ConvertTo-NativeArgument '--list') -ceq '--list') 'WSL management flag must be bare'
+Assert-True ((ConvertTo-NativeArgument 'Ubuntu-24.04') -ceq 'Ubuntu-24.04') 'WSL distribution must be bare'
 Assert-True ((ConvertTo-NativeArgument '') -ceq '""') 'Empty argument'
 Assert-True ((ConvertTo-NativeArgument 'a"b') -ceq '"a\"b"') 'Embedded quote'
 Assert-True ((ConvertTo-NativeArgument 'C:\RNA seq\') -ceq '"C:\RNA seq\\"') 'Trailing backslash'
@@ -47,5 +49,5 @@ $script:state=@{state='offline'};$script:starts=@()
 Start-Station $config
 Assert-True ($script:starts.Count -eq 2 -and $script:starts[0].File -eq 'wsl.exe') 'New service plus browser'
 Assert-True ($script:starts[0].Arguments.Contains('"/mnt/d/转录组 工作站/程序/version/windows/wsl_entry.sh"')) 'Quoted Chinese/space script path'
-Assert-True ($script:starts[0].Arguments.Contains('"/bin/bash" "--"')) 'Absolute bash with option terminator'
+Assert-True ($script:starts[0].Arguments.Contains('-d Ubuntu-24.04 --exec /bin/bash -- ')) 'Absolute bash with option terminator'
 "PASS: $script:count PowerShell launcher checks (WSL/native process calls mocked; no Windows desktop VM)"

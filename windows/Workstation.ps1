@@ -9,7 +9,9 @@ param(
 
 function ConvertTo-NativeArgument {
     param([AllowEmptyString()][string]$Value)
-    # CommandLineToArgvW / CRT quoting, including trailing backslashes.
+    # WSL parses management options from the raw command line and retains quotes.
+    # Keep flags/simple values bare; use CRT quoting only where required.
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
     $escaped=$Value -replace '(\\*)"','$1$1\"'
     $escaped=$escaped -replace '(\\+)$','$1$1'
     return '"'+$escaped+'"'
@@ -43,12 +45,14 @@ function ConvertFrom-WslBytes {
 
 function Invoke-Wsl {
     param([string[]]$WslArguments,[switch]$Capture,[switch]$AllowFailure,[string]$Step='WSL 调用')
-    # Explicit CRT quoting avoids Windows PowerShell 5.1 native argument rewriting.
+    # WSL flags remain bare; arguments after --exec follow Windows CRT quoting.
     # Never merge stderr into paths/JSON: WSL startup warnings also use stderr.
     $info=New-Object Diagnostics.ProcessStartInfo
     $info.FileName=Get-WslExecutable
     $info.Arguments=($WslArguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join ' '
     $info.UseShellExecute=$false
+    # Native WSL warnings otherwise use UTF-16 while Linux stdout/stderr use UTF-8.
+    $info.EnvironmentVariables['WSL_UTF8']='1'
     $info.RedirectStandardOutput=[bool]$Capture
     $info.RedirectStandardError=[bool]$Capture
     $process=New-Object Diagnostics.Process
@@ -82,7 +86,7 @@ function Invoke-Wsl {
         if ($stdout) { $stdout.Dispose() }; if ($stderr) { $stderr.Dispose() }; $process.Dispose()
     }
     if ($script:DiagnosticFile) {
-        $record=[pscustomobject]@{time=[DateTime]::Now.ToString('o');step=$Step;arguments=$WslArguments;exit_code=$code;stderr=$errorText}
+        $record=[pscustomobject]@{time=[DateTime]::Now.ToString('o');step=$Step;executable=$info.FileName;command_line=$info.Arguments;arguments=$WslArguments;exit_code=$code;stderr=$errorText}
         $record | ConvertTo-Json -Compress | Add-Content -LiteralPath $script:DiagnosticFile -Encoding UTF8
     }
     if ($Capture -and $code -eq 0 -and $errorText.Trim() -and !$AllowFailure) {
