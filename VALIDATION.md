@@ -111,3 +111,9 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 对照Microsoft/WSL提交`4d85ce8dcbcf8091a66da89fd777d0b0cc96d685`：`src/windows/common/helpers.cpp`中的ParseArgument保留引号；WslClient.cpp直接匹配管理选项，只有识别裸`--exec`后才以CommandLineToArgvW解析剩余内容。旧版`"--list" "--quiet"`会落入默认Shell，产生用户报告的命令不存在。现在简单参数不加引号，需要引号的exec路径及参数继续使用CRT规则。
 - WslClient.cpp支持子进程环境`WSL_UTF8=1`，用于统一WSL本身与Linux输出为UTF-8。保留旧版UTF-16列表后备，父进程环境不变。已从用户乱码还原出`/bin/bash: line 1: --list: command not found`。
 - 17项PowerShell逻辑检查、33项Linux真实进程/管道检查通过，新增原始Windows命令行格式、UTF-8作用域及WSL警告与Linux错误同时解码检查。先前Linux argv替身会先去掉引号，无法发现WSL的原始命令行解析问题；新增原始字符串检查补齐这一缺口。没有Windows/WSL2 VM，实机完整部署仍以用户执行为准。
+
+## WSL原生Docker代理配置辅助（2026-10-24）
+
+- 用户实机确认Python依赖已安装，Ubuntu Docker Engine 29.1.3未配置代理；Windows代理为127.0.0.1:10808，构建在Docker Hub连接超时。该网络配置与启动器修复分开处理。
+- `scripts/configure_wsl_docker_proxy.py`在用户本机探测WSL默认网关、验证HTTPS代理连通，保留Docker其他设置，检查活动容器，验证/备份配置，重启及核对生效值，失败恢复，最后拉取锁定摘要的基础镜像。
+- 6项聚焦检查通过：保留已有设置和备份、活动容器拒绝修改、无效配置拒绝修改、重启失败恢复、代理未生效恢复、新建配置失败移除。Docker调用为替身，未修改云端或用户的Docker配置，未宣称已验证用户代理连通或本机镜像下载。

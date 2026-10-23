@@ -22,6 +22,14 @@
 
 新版调用诊断保存在 **D:\转录组分析工作站\日志\wsl-launcher.log**，包含失败步骤、参数、退出码和标准错误。若仍失败，可提供失败窗口最后几行及此日志末尾相应记录（分享前隐藏私人路径/信息）。我们没有在Windows实机上复现该退出码，因此修复已确认的输出污染缺陷后，仍需以你电脑的重试结果确认。
 
+### Ubuntu Docker Engine连接Docker Hub超时
+
+如果Python依赖安装成功，但构建第一步访问`registry-1.docker.io/v2/`超时，应检查Docker守护进程的代理。Ubuntu内Docker Engine与Docker Desktop的代理配置方式不同，Windows系统代理不会自动配置到Ubuntu引擎。已确认使用NAT模式、Windows HTTP代理`127.0.0.1:10808`时，先在代理软件开启允许局域网连接，保持软件运行；WSL通过默认网关地址访问Windows代理。
+
+在Ubuntu的源码目录可运行 `sudo python3 scripts/configure_wsl_docker_proxy.py --port 10808`。脚本先以验证TLS的HTTPS请求检查代理访问Docker Hub，再检查本机Docker上下文和运行容器；有运行容器时停止配置，等待用户正常完成任务。随后合并`/etc/docker/daemon.json`的代理字段，保留其他设置和no-proxy，验证配置、备份、重启并核对代理是否生效；启动失败恢复原配置。最后拉取Dockerfile指定摘要的基础镜像。该脚本不适用于Docker Desktop或远程Docker引擎。
+
+修复需要重启本机Docker服务。代理不可达时不会写入配置；如提示连接失败，检查代理软件的监听地址、端口和Windows防火墙对WSL的访问。WSL默认网关在重启后可能改变；如之后再次出现镜像下载失败，可重新运行脚本刷新地址。基础镜像拉取成功后，继续运行原来的`部署到D盘.bat`，已有Python环境和Docker缓存可复用。
+
 ## 每天打开
 
 双击桌面 **转录组分析工作站**，或 `D:\转录组分析工作站\启动工作站.bat`。启动器自动检查 Docker、识别本工作站是否已经运行、检查服务归属并打开浏览器，不会把其他程序的页面当成工作站。
