@@ -136,7 +136,8 @@ def inline(paragraph, children, bold=False, italic=False, code=False):
                    italic or child.tag in {'em', 'i'}, code or child.tag == 'code')
 
 
-def make_word(tree, meta):
+def make_word(tree, meta, images=None):
+    images = images or {}
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = Cm(21), Cm(29.7)
@@ -171,13 +172,14 @@ def make_word(tree, meta):
     doc.settings.element.append(element('updateFields', val='true'))
     doc.add_paragraph('LAB WORKSTATION  /  METHODS & USER GUIDE', style='Subtitle')
     doc.add_paragraph(meta['title'], style='Title')
-    doc.add_paragraph('从 FASTQ / Salmon / 原始计数到差异、通路与关键基因探索', style='Subtitle')
+    doc.add_paragraph('从RNA与建库测序讲起，循序理解表达、统计与工作站操作', style='Subtitle')
     doc.add_paragraph(f"说明书版本：{meta['guide_version']}\n适用程序：v{meta['application_version']}\n更新日期：{meta['updated']}")
     doc.add_paragraph('网页使用说明与本 Word 文档由同一份文稿生成。实验结论应结合设计、质量控制、效应量及独立验证。')
     doc.add_paragraph('程序内容指纹：'+meta['code_fingerprint'], style='Caption')
     doc.add_page_break()
     doc.add_paragraph('阅读目录', style='Heading 1')
-    headings = [n for n in tree.root.children if isinstance(n, Node) and n.tag in {'h2', 'h3'}]
+    doc.add_paragraph('目录只列主要单元；章内小节可在Word“视图 → 导航窗格”中查找。')
+    headings = [n for n in tree.root.children if isinstance(n, Node) and n.tag == 'h2']
     for heading in headings:
         paragraph = doc.add_paragraph()
         paragraph.paragraph_format.left_indent = Cm(.5 if heading.tag == 'h3' else 0)
@@ -201,7 +203,15 @@ def make_word(tree, meta):
                 paragraph._p.append(element('bookmarkEnd', id=bookmark))
                 bookmark += 1
             elif tag == 'p':
-                inline(doc.add_paragraph(), node.children)
+                pictures = list(node.descendants('img'))
+                for picture in pictures:
+                    data = images[picture.attrs['src']]
+                    shape = doc.add_picture(io.BytesIO(data), width=Cm(16))
+                    shape._inline.docPr.set('descr', picture.attrs.get('alt', ''))
+                    if picture.attrs.get('alt'):
+                        doc.add_paragraph(picture.attrs['alt'], style='Caption')
+                if node.text().strip():
+                    inline(doc.add_paragraph(), node.children)
             elif tag == 'pre':
                 paragraph = doc.add_paragraph()
                 paragraph.paragraph_format.line_spacing = 1
@@ -256,7 +266,7 @@ def make_word(tree, meta):
 
 CSS = '''
 :root{--ink:#183531;--green:#126657;--paper:#f4f7f5;--line:#d4e0d9;--muted:#557269}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.9 system-ui,"Microsoft Yahei",sans-serif}a{color:var(--green);overflow-wrap:anywhere}header{background:#183c34;color:white;padding:38px max(24px,calc((100vw - 1250px)/2));}header small{color:#c2dfd0;letter-spacing:.1em}h1{font-size:30px;line-height:1.5;margin:10px 0}header p{color:#d4e8df}header a{color:white;display:inline-block;border:1px solid #a9cabd;padding:6px 15px;border-radius:6px;text-decoration:none}.layout{display:grid;grid-template-columns:265px minmax(0,1fr);gap:30px;max-width:1300px;padding:28px 24px;margin:auto}aside{position:sticky;top:20px;align-self:start;max-height:94vh;overflow:auto;font-size:13px}aside ul{list-style:none;padding-left:14px}aside>nav>.toc>ul{padding-left:0}aside a{text-decoration:none;display:block;margin:5px 0}input{width:100%;border:1px solid #b9cbc0;border-radius:6px;font:inherit;padding:10px;background:white}#search-status{font-size:12px;color:var(--muted)}#search-results a{font-size:13px;margin:8px 0}section{background:white;border:1px solid var(--line);border-radius:12px;padding:24px 30px;margin-bottom:22px;min-width:0}h2{font-size:23px;margin-top:4px;line-height:1.6}h3{font-size:18px;margin-top:28px}h4{font-size:16px}p,li{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:9px;min-width:100px}th{background:#edf4ef}tr:nth-child(even){background:#fafcfb}.table-scroll{overflow-x:auto;margin:18px 0}pre{background:#102a23;color:#d1e9dd;padding:16px;border-radius:8px;overflow-x:auto;font:12px/1.7 Consolas,monospace}code{background:#edf4ef;border-radius:3px;padding:1px 4px;font: .9em Consolas,monospace}pre code{background:transparent;padding:0;color:inherit}blockquote{margin:18px 0;border-left:4px solid #64a28b;background:#edf5ef;padding:8px 18px;color:#365c4e}.stamp{font-size:12px;color:var(--muted);padding:0 4px;overflow-wrap:anywhere}button{font:inherit;background:var(--green);color:white;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}#search-results:empty{display:none}[hidden]{display:none!important}@media(max-width:850px){header{padding:24px}h1{font-size:25px}.layout{display:block;padding:16px}aside{position:static;max-height:none;margin-bottom:20px}aside nav{max-height:220px;overflow:auto;border-bottom:1px solid var(--line)}section{padding:20px 16px}h2{font-size:20px}}@media print{body{background:white;font-size:10pt}.layout{display:block;padding:0}aside,header a,button{display:none}header{background:white;color:#183531;padding:0}header p,header small{color:#183531}section{border:0;padding:0;break-inside:auto}h2,h3,h4{break-after:avoid}table{font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f5;color:#183531}.table-scroll{overflow:visible}}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.9 system-ui,"Microsoft Yahei",sans-serif}a{color:var(--green);overflow-wrap:anywhere}header{background:#183c34;color:white;padding:38px max(24px,calc((100vw - 1250px)/2));}header small{color:#c2dfd0;letter-spacing:.1em}h1{font-size:30px;line-height:1.5;margin:10px 0}header p{color:#d4e8df}header a{color:white;display:inline-block;border:1px solid #a9cabd;padding:6px 15px;border-radius:6px;text-decoration:none}.layout{display:grid;grid-template-columns:265px minmax(0,1fr);gap:30px;max-width:1300px;padding:28px 24px;margin:auto}aside{position:sticky;top:20px;align-self:start;max-height:94vh;overflow:auto;font-size:13px}aside ul{list-style:none;padding-left:14px}aside>nav>.toc>ul{padding-left:0}aside a{text-decoration:none;display:block;margin:5px 0}input{width:100%;border:1px solid #b9cbc0;border-radius:6px;font:inherit;padding:10px;background:white}#search-status{font-size:12px;color:var(--muted)}#search-results a{font-size:13px;margin:8px 0}article figure{margin:20px 0}article img{display:block;max-width:100%;height:auto;margin:auto;border:1px solid var(--line);border-radius:8px}figcaption{font-size:12px;color:var(--muted);margin:8px 0}section{background:white;border:1px solid var(--line);border-radius:12px;padding:24px 30px;margin-bottom:22px;min-width:0}h2{font-size:23px;margin-top:4px;line-height:1.6}h3{font-size:18px;margin-top:28px}h4{font-size:16px}p,li{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:9px;min-width:100px}th{background:#edf4ef}tr:nth-child(even){background:#fafcfb}.table-scroll{overflow-x:auto;margin:18px 0}pre{background:#102a23;color:#d1e9dd;padding:16px;border-radius:8px;overflow-x:auto;font:12px/1.7 Consolas,monospace}code{background:#edf4ef;border-radius:3px;padding:1px 4px;font: .9em Consolas,monospace}pre code{background:transparent;padding:0;color:inherit}blockquote{margin:18px 0;border-left:4px solid #64a28b;background:#edf5ef;padding:8px 18px;color:#365c4e}.stamp{font-size:12px;color:var(--muted);padding:0 4px;overflow-wrap:anywhere}button{font:inherit;background:var(--green);color:white;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}#search-results:empty{display:none}[hidden]{display:none!important}@media(max-width:850px){header{padding:24px}h1{font-size:25px}.layout{display:block;padding:16px}aside{position:static;max-height:none;margin-bottom:20px}aside nav{max-height:220px;overflow:auto;border-bottom:1px solid var(--line)}section{padding:20px 16px}h2{font-size:20px}}@media print{body{background:white;font-size:10pt}.layout{display:block;padding:0}aside,header a,button{display:none}header{background:white;color:#183531;padding:0}header p,header small{color:#183531}section{border:0;padding:0;break-inside:auto}h2,h3,h4{break-after:avoid}table{font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f5;color:#183531}.table-scroll{overflow:visible}}
 '''
 JS = '''
 const input=document.getElementById('guide-search'),result=document.getElementById('search-results'),status=document.getElementById('search-status');
@@ -269,12 +279,16 @@ if(location.protocol==='file:')document.getElementById('word-download').href='..
 
 def make_html(body, toc, meta):
     body = re.sub(r'<h1\b[^>]*>.*?</h1>\s*', '', body, count=1, flags=re.S)
-    sections = ''.join('<section>'+part+'</section>' for part in re.split(r'(?=<h2\b)', body) if part.strip())
+    def figure(match):
+        image = next(Tree(match.group(1)).root.descendants('img'))
+        return '<figure>'+match.group(1)+'<figcaption>'+escape(image.attrs.get('alt', ''))+'</figcaption></figure>'
+    body = re.sub(r'<p>(<img\b[^>]*>)</p>', figure, body)
+    sections = ''.join('<section>' +part+'</section>' for part in re.split(r'(?=<h2\b)', body) if part.strip())
     sections = sections.replace('<table>', '<div class="table-scroll"><table>').replace('</table>', '</table></div>')
     title, version, updated = (escape(meta[key]) for key in ['title', 'guide_version', 'updated'])
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title><style>{CSS}</style></head>
-<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>{title}</h1><p>操作步骤 · 分析原理 · 结果解读 · 成熟方法与参考文献</p><p>说明书 {version} · 适用程序 v{meta['application_version']} · 更新 {updated}</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
+<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>{title}</h1><p>基础知识 · 图解与算例 · 分析原理 · 实操与参考</p><p>说明书 {version} · 适用程序 v{meta['application_version']} · 更新 {updated}</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
 <div class="layout"><aside><label for="guide-search">搜索说明书</label><input id="guide-search" type="search" placeholder="例如：火山图、KEGG、样本表"><p id="search-status" role="status">输入关键词可定位到相关章节</p><div id="search-results"></div><nav aria-label="说明书目录">{toc}</nav><p class="stamp">程序内容指纹<br>{escape(meta['code_fingerprint'])}</p></aside><article>{sections}<p class="stamp">网页、Word 与文稿同步生成；内容指纹 {meta['manual_sha256']}</p></article></div><script>{JS}</script></body></html>
 '''.encode('utf-8')
 
@@ -282,7 +296,7 @@ def make_html(body, toc, meta):
 def build(root: Path = ROOT) -> dict[Path, bytes]:
     source = normalized(root/SOURCE)
     text = source.decode('utf-8-sig')
-    edition = re.search(r'说明书版本[：:]\s*(\d{4}\.\d{2}\.\d{2})', text)
+    edition = re.search(r'说明书版本[：:]\s*(\d{4}\.\d{2}\.\d{2}(?:-r\d+)?)', text)
     if not edition:
         raise ValueError('文稿必须包含说明书版本：YYYY.MM.DD')
     version = edition.group(1)
@@ -291,19 +305,29 @@ def build(root: Path = ROOT) -> dict[Path, bytes]:
                                   extension_configs={'toc': {'slugify': heading_id, 'toc_depth': '2-3'}})
     body = processor.convert(text)
     tree = Tree(body)
+    images = {}
+    for picture in tree.root.descendants('img'):
+        src = picture.attrs.get('src', '')
+        asset = (root/'docs'/src).resolve()
+        if not src.startswith('assets/') or not asset.is_relative_to((root/'docs/assets').resolve()):
+            raise ValueError('教学图必须是docs/assets内的本地文件：'+src)
+        if asset.suffix.lower() not in {'.png', '.jpg', '.jpeg'} or not asset.is_file():
+            raise ValueError('教学图缺失或不是Word支持的图片：'+src)
+        images[src] = asset.read_bytes()
     headings = list(tree.root.descendants('h2'))
     meta = dict(schema=1, title=text.splitlines()[0].lstrip('# '), guide_version=version,
-                updated=version.replace('.', '-'), application_version='2.0',
-                manual_sha256=sha(source), source_files=files,
+                updated=version.split('-')[0].replace('.', '-'), application_version='2.0',
+                manual_sha256=sha(source), source_files=files, assets={name:sha(data) for name,data in images.items()},
                 code_fingerprint='sha256:'+sha(json.dumps(files, sort_keys=True).encode()),
                 builder_sha256=sha(normalized(Path(__file__))), chapter_count=len(headings),
                 reference_links=len({n.attrs['href'] for n in tree.root.descendants('a') if n.attrs.get('href', '').startswith('https://')}),
                 artifacts={'source': SOURCE.as_posix(), 'html': OUTPUTS[0].as_posix(), 'word': OUTPUTS[1].as_posix()})
     html = make_html(body, processor.toc, meta)
-    word = make_word(tree, meta)
+    word = make_word(tree, meta, images)
     meta['html_sha256'], meta['word_sha256'] = sha(html), sha(word)
     return {OUTPUTS[0]: html, OUTPUTS[1]: word,
-            OUTPUTS[2]: (json.dumps(meta, ensure_ascii=False, sort_keys=True, indent=2)+'\n').encode('utf-8')}
+            OUTPUTS[2]: (json.dumps(meta, ensure_ascii=False, sort_keys=True, indent=2)+'\n').encode('utf-8'),
+            **{Path('static/guide')/name:data for name,data in images.items()}}
 
 
 def main():

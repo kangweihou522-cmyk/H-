@@ -125,3 +125,11 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 36项pytest通过，包含4项新说明书检查：无项目下载、缺失文档响应、Word全章节/表格/链接结构、重复生成与代码变化指纹。`python scripts/build_user_guide.py --check`通过。文档构建依赖单独放在docs/requirements.txt，日常运行工作站不需要安装python-docx。
 - 实际启动独立测试后台并使用Chromium检查：最后的09入口、无分析项目阅读、正文搜索、Word下载SHA256、轮询后页面状态、桌面/手机无横向溢出、独立HTML可阅读，无JS异常。截图在忽略的runs/manual-browser-validation，未发布用户数据。
 - 没有在Windows桌面Microsoft Word中渲染DOCX；已通过Office包完整性、XML内容/目录锚点、下载与生成一致性检查。未重跑已验证的RNA-seq分析链，未访问或改写用户本地D盘；本机更新仍需结束任务后执行更新入口并重启后台。
+
+## 新手教学版说明书（2026-10-26，r2）
+
+- 在保留操作和实际方法边界的基础上，重写为“从零入门与工作站实操教程”：九个前置入门单元，系统解释RNA/基因/转录本、bulk组成、建库和短读长测序、read/fragment/PE、质量、参考、表达尺度、实验设计与统计；核心方法章节增加直觉、算式、结果判读和常见误解。全文包含37个主单元、四幅原创合成教学图、80余条术语和12题带答案自测，参考扩展到25项。
+- 演示数据明确不是真实实验结果。核对CPM、median-of-ratios、TPM、BH示例与ORA四参数示例；差异教学表作为大表的节选，与图中值和两套筛选相符。新增检查保证有限padj与原始P的次序关系、NA处理及名单A/B/C/E/H与B/C正确；不把演示值当作从小计数表实际拟合的DESeq2输出。
+- 说明书构建支持r2修订号和本地教学图：Word嵌入图像及说明，HTML复制相同图片并限制响应宽度；目录按主单元列出。确认Word与网页不存在未渲染的加粗标记。
+- 37项pytest通过；其中5项说明书检查包含Word嵌图与网页源图逐字节一致、可重复生成、版本日期、下载、目录与教学表规则。实际Chromium检查新手入口、四图加载、全文搜索、Word下载、轮询、桌面和手机无横向溢出通过；截图位于忽略的runs/beginner-manual-validation。
+- 将质控页导入提示明确区分为计数/已有Salmon来源，说明不代表质量不合格；统计和分析算法未修改。未重跑测序/R分析，也没有在本机Microsoft Word中做页面渲染，DOCX验证范围同上一条记录。

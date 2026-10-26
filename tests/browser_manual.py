@@ -26,6 +26,8 @@ with sync_playwright() as p:
     frame = page.frame_locator('#manualframe')
     frame.locator('article h2').first.wait_for()
     assert frame.locator('article h2').count() >= 20
+    assert frame.locator('article figure img').count() == 4
+    page.wait_for_function("()=>[...document.getElementById('manualframe').contentDocument.images].every(i=>i.complete&&i.naturalWidth>0)")
     frame.locator('#guide-search').fill('KEGG')
     assert frame.locator('#search-results a').count() > 0
     frame.locator('#search-results a').first.click()
@@ -39,6 +41,8 @@ with sync_playwright() as p:
     assert word.suggested_filename.endswith('.docx')
     assert hashlib.sha256(Path(word.path()).read_bytes()).hexdigest() == manifest['word_sha256']
     page.screenshot(path=str(args.output/'manual-desktop.png'), full_page=True)
+    frame.locator('article figure').first.scroll_into_view_if_needed()
+    page.screenshot(path=str(args.output/'manual-beginner-diagram.png'), full_page=True)
     page.set_viewport_size({'width': 390, 'height': 844})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     assert frame.locator('body').evaluate('(body)=>body.scrollWidth <= innerWidth')

@@ -52,13 +52,33 @@ def test_word_contains_all_chapters_tables_links_and_utf8_content():
         assert anchors and anchors <= bookmarks
         relationships = package.read('word/_rels/document.xml.rels').decode()
         assert 'https://doi.org/' in relationships and 'https://github.com/' in relationships
+        assets = re.findall(r'!\[[^\]]*\]\((assets/[^)]+)\)', source)
+        embedded = {package.read(name) for name in package.namelist() if name.startswith('word/media/')}
+        assert len(assets) == 4
+        for asset in assets:
+            original = (ROOT/'docs'/asset).read_bytes()
+            assert original in embedded
+            assert original == (ROOT/'static/guide'/asset).read_bytes()
+
+
+def test_teaching_example_respects_bh_order_and_both_thresholds():
+    source = (ROOT/'docs/USER_GUIDE.md').read_text()
+    rows = re.findall(r'^\| ([A-Z]) \| (-?[\d.]+) \| ([\d.]+) \| ([\d.]+|NA) \|', source, flags=re.M)
+    assert len(rows) == 7
+    rows = [(gene, float(lfc), float(p), None if adj == 'NA' else float(adj)) for gene, lfc, p, adj in rows]
+    finite = sorted((p, adj) for _, _, p, adj in rows if adj is not None)
+    assert all(0 <= p <= adj <= 1 for p, adj in finite)
+    assert all(a[1] <= b[1] for a, b in zip(finite, finite[1:]))
+    nominal = {g for g, lfc, p, _ in rows if p < .05 and abs(lfc) > 0}
+    strict = {g for g, lfc, _, adj in rows if adj is not None and adj < .05 and abs(lfc) > 1}
+    assert nominal == {'A', 'B', 'C', 'E', 'H'} and strict == {'B', 'C'}
 
 
 def test_generation_is_repeatable_and_detects_changed_runtime(tmp_path):
     pytest.importorskip('docx')
     from scripts.build_user_guide import build, OUTPUTS
     docs = tmp_path/'docs'; docs.mkdir()
-    (docs/'USER_GUIDE.md').write_text('# 使用说明\n\n说明书版本：2026.10.26\n\n## 输入与设计\n\n中文与 `FASTQ`。\n\n| A | B |\n|---|---|\n| 原始计数 | 2 |\n')
+    (docs/'USER_GUIDE.md').write_text('# 使用说明\n\n说明书版本：2026.10.26-r2\n\n## 输入与设计\n\n中文与 `FASTQ`。\n\n| A | B |\n|---|---|\n| 原始计数 | 2 |\n')
     runtime = tmp_path/'app.py'; runtime.write_text('version = 1\n')
     first = build(tmp_path)
     assert first == build(tmp_path)
@@ -68,5 +88,6 @@ def test_generation_is_repeatable_and_detects_changed_runtime(tmp_path):
     changed = build(tmp_path)
     assert first[OUTPUTS[0]] != changed[OUTPUTS[0]] and first[OUTPUTS[1]] != changed[OUTPUTS[1]]
     old, new = (json.loads(item[OUTPUTS[2]]) for item in (first, changed))
+    assert old['guide_version'] == '2026.10.26-r2' and old['updated'] == '2026-10-26'
     assert old['manual_sha256'] == new['manual_sha256']
     assert old['code_fingerprint'] != new['code_fingerprint']

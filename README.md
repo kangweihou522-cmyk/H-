@@ -2,7 +2,7 @@
 
 本地中文网页工作站，支持 Ubuntu / Windows WSL2 Ubuntu 24.04。流程为 **fastp → Salmon → tximport → DESeq2 → GO/KEGG/GMT/fgsea → GSVA/ssGSEA、WGCNA、decoupleR → 交互图与离线报告**。
 
-完整操作、分析原理、结果解读与参考资料见 [使用说明](docs/USER_GUIDE.md)，同版本 [Word说明书](docs/USER_GUIDE.docx) 可直接下载。工作站最后一项 **09 使用说明与方法参考** 支持全文阅读、搜索和下载；无需选择分析项目。网页与Word从同一文稿生成，并由GitHub同步检查。更新本机入口见 [D盘部署与更新](docs/WINDOWS_D_DRIVE.md)。
+从 RNA 与建库测序开始的新手教程、术语解释、计算案例、完整操作与参考资料见 [使用说明](docs/USER_GUIDE.md)，同版本 [Word说明书](docs/USER_GUIDE.docx) 可直接下载。工作站最后一项 **09 使用说明与方法参考** 支持全文阅读、搜索和下载；无需选择分析项目。网页与Word从同一文稿生成，并由GitHub同步检查。更新本机入口见 [D盘部署与更新](docs/WINDOWS_D_DRIVE.md)。
 
 页面按样本设计、测序质控、表达诊断、差异、富集、通路/基因、网络/表型、报告八步组织。流程和图表改进参考用户报告正文，以及 nf-core、MultiQC、DESeq2、fgsea、GSVA、WGCNA、decoupleR、EnhancedVolcano、ComplexHeatmap、ideal 等成熟项目；具体采用与借鉴范围见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。用户报告和真实客户数据不包含在仓库里。
 

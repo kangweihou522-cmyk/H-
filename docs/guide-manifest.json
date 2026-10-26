@@ -5,18 +5,24 @@
     "source": "docs/USER_GUIDE.md",
     "word": "docs/USER_GUIDE.docx"
   },
-  "builder_sha256": "e73d578e81b665a7c6d252c9ecbd6df07b6f974d6fc93c9e2c1e0fbd29187a05",
-  "chapter_count": 26,
-  "code_fingerprint": "sha256:968507afd7e4f8bdf5854096e652078dfeeaf9237ac9edc249fce5246145b003",
-  "guide_version": "2026.10.26",
-  "html_sha256": "09b7c35b31b71a0efb4ff67e8d24637f353661a235e563a00044c84e1e09ddf5",
-  "manual_sha256": "390f72ffbfc51f15cebb145f2d23cdec1151bd5e9e5447ec93073167f3fa5302",
-  "reference_links": 41,
+  "assets": {
+    "assets/deg-two-profiles.png": "19a5c40487b5ce966b51f3f3f9deeb18f10a14d13c25f08c11d06696505c9ee1",
+    "assets/enrichment-methods.png": "c982319d73462d83f93c226158dfa8f78550f41347f5abf66b146dce1e988d04",
+    "assets/library-normalization.png": "062b7e1e80f75def6cd90979584cc7d9b31f4230852723e7723ec383da76adc1",
+    "assets/rna-to-reads.png": "c5d3d59286d7ce114294aa85ccf3e09c34933262e792e84ce386bbf84417b93f"
+  },
+  "builder_sha256": "735dbddfdbea45032a93403220ed99f7e951677226071e82a04e338f91ee0696",
+  "chapter_count": 37,
+  "code_fingerprint": "sha256:2f73b1511f19590027d63dfa5d20fcd8f6cccc765b9e183322ef8dea12525a0b",
+  "guide_version": "2026.10.26-r2",
+  "html_sha256": "e374c387f07d158ae6413d6f49bf36996199ce9df8b00e02481f2417e9117a79",
+  "manual_sha256": "8945bd4e57df8001b13105b0bfde8bf04505808d7aedc32e473f143bce319835",
+  "reference_links": 45,
   "schema": 1,
   "source_files": {
     "Dockerfile": "b04250d857789a2c2bc5d680b18aac1a70c2f3a5b64572d7efe754a38b170320",
     "Dockerfile.annotation": "5030f0a3fbc58613597ba691de2f14363ddc29e2bb3397da6a5653fcf8d04982",
-    "README.md": "0c0482473da0ee6f2108644e465ad0cea414d7bec8a36bf843f100e9e1a26d7e",
+    "README.md": "1301f823742fa084b3f0a76c41b759a94b90e422b2dbbfebeaf469611348825b",
     "app.py": "764ae8b1d0517e0484bd745e5d86fd93ab1a5f26332e732eaf43c85ae281541b",
     "docs/WINDOWS_D_DRIVE.md": "442193ce5a5293d2331f82e857fa2a944fdc569eed433f7a4e8497240053e919",
     "docs/WORKFLOW.md": "b2f5a1c914a3b48b9c6abeed22fea6014f19178ad3d528d42e70d4fa02000b75",
@@ -26,6 +32,7 @@
     "requirements.txt": "27bcac236cc37d27390a337be6ed635ebf60a2c7b2e8e31f670a4a45d9fd401f",
     "results.py": "d8b47572d67a2fc69af8e578ab1b73b15e84523a692ce44ec7222ae030f2b693",
     "scripts/analyze.R": "b82509c2f8b39b3862633912f5bc024929786ceda786a89e464ad613fbc7170b",
+    "scripts/build_guide_figures.py": "3c604eca7c5e28f5aeeca1c61b7a7a1f4b9e8e4acdafabac4251e30e892505d3",
     "scripts/build_options.sh": "48d3e05e0077e9a297f2142bd1f46164aca3640afcad88bdc711b723143ad322",
     "scripts/configure_wsl_docker_proxy.py": "356d8461d83db07e799ce01a85cdbb10edd8de4c49431037c8e29683c7f679db",
     "scripts/enrichment.R": "0d7f8a522170220d557711a5df0e1cd61866dcb446e6cea97128c659867e1cd4",
@@ -39,8 +46,8 @@
     "scripts/prepare_reference.py": "e61c47bbd84a4ef49b0df235a059fe7fca7e6ef0ae5d6eb1bd6ff045484b0e67",
     "scripts/verify_smoke.py": "5aa4e942fd795f74b4b96b4e3d13a0110a73e0348e62bb0f7741ededd8c6ad51",
     "scripts/verify_v2.py": "ebbb75a40a2102ea1857f78664d6bd417a6c36bd57364872a80ff962108bafad",
-    "static/app.js": "3ca041c3dba988d988df07b0b752309ad5cd76fafa43c2f3951a69f4dd9e4b8b",
-    "static/index.html": "28d236b9e0404ccc1fd12c548a7a8ec6be8e2093002df34c191406de3db89cc6",
+    "static/app.js": "bb8f050239ca9c976403928f1b3fed45458a83305c40ffc380d2269f8244d591",
+    "static/index.html": "12af7bce2afcb3c724cb6105b1c44d2409667a1645eb74eac98ecac095110345",
     "static/style.css": "ec1faf307ce71cd542c90766dafd2ab24902a79c96410573f812386b08f330a6",
     "static/templates/counts_samples.csv": "5088625a873f534d6e335cd5951db8c84b984ee722832dc9f74bebbe87e1635e",
     "static/templates/fastq_samples.csv": "c37c3897f303a8f70399e56ae5c9477c6886dd06c96f8034274fc0674cc2d511",
@@ -59,7 +66,7 @@
     "部署到D盘.bat": "90caf6e6c868a6becf39992b9d304bc253c789cc38af97af12df273163047bfb",
     "部署到D盘.sh": "5486b74de80af9a78c2f5b66372631d0348ae8825b899f536796c8b1f5029a5c"
   },
-  "title": "小鼠 bulk RNA-seq 工作站完整使用说明、方法原理与参考",
+  "title": "小鼠 bulk RNA-seq 从零入门与工作站实操教程",
   "updated": "2026-10-26",
-  "word_sha256": "9c805a93978aa911dba0f5c81016b5989d9765b8f60c261df1aa82ddc6ff5847"
+  "word_sha256": "a18ccb2c9fd97140de9148dd2317ca5ffa4adef8041096938964beb9d79ca4ab"
 }
