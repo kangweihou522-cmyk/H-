@@ -204,6 +204,31 @@ def invalid(e): return jsonify(error=str(e)),400
 @app.get('/')
 def index(): return send_from_directory(ROOT/'static','index.html')
 
+@app.get('/api/manual')
+def manual_status():
+    manifest=ROOT/'docs/guide-manifest.json'
+    metadata={}
+    if manifest.is_file():
+        try: metadata=json.loads(manifest.read_text(encoding='utf-8'))
+        except (OSError,ValueError): pass
+    return jsonify(html=(ROOT/'static/guide/index.html').is_file(),
+                   word=(ROOT/'docs/USER_GUIDE.docx').is_file(),
+                   source=(ROOT/'docs/USER_GUIDE.md').is_file(),metadata=metadata)
+
+@app.get('/api/manual/word')
+def manual_word():
+    file=ROOT/'docs/USER_GUIDE.docx'
+    if not file.is_file(): return jsonify(error='当前版本尚未包含Word使用说明，请更新工作站后重试。'),404
+    return send_file(file,as_attachment=True,download_name='小鼠bulk-RNA-seq工作站使用说明.docx',
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+@app.get('/api/manual/source')
+def manual_source():
+    file=ROOT/'docs/USER_GUIDE.md'
+    if not file.is_file(): return jsonify(error='当前版本尚未包含使用说明原稿，请更新工作站后重试。'),404
+    return send_file(file,as_attachment=True,download_name='小鼠bulk-RNA-seq工作站使用说明.md',
+                     mimetype='text/markdown; charset=utf-8')
+
 @app.get('/api/health')
 def health():
     image=subprocess.run(['docker','image','inspect','mouse-rnaseq:2'],capture_output=True).returncode==0 if shutil.which('docker') else False

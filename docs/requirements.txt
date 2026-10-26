@@ -1,0 +1,4 @@
+# Documentation build tools; not needed to open or analyze with the workstation.
+python-docx==1.2.0
+Markdown==3.11.1
+lxml==6.1.3

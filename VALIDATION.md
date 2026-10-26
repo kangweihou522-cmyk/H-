@@ -117,3 +117,11 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 用户实机确认Python依赖已安装，Ubuntu Docker Engine 29.1.3未配置代理；Windows代理为127.0.0.1:10808，构建在Docker Hub连接超时。该网络配置与启动器修复分开处理。
 - `scripts/configure_wsl_docker_proxy.py`在用户本机探测WSL默认网关、验证HTTPS代理连通，保留Docker其他设置，检查活动容器，验证/备份配置，重启及核对生效值，失败恢复，最后拉取锁定摘要的基础镜像。
 - 6项聚焦检查通过：保留已有设置和备份、活动容器拒绝修改、无效配置拒绝修改、重启失败恢复、代理未生效恢复、新建配置失败移除。Docker调用为替身，未修改云端或用户的Docker配置，未宣称已验证用户代理连通或本机镜像下载。
+
+## 完整使用说明、Word与工作站入口（2026-10-26）
+
+- 新增26章中文完整使用说明，约2.7万字符，包含21项方法论文/成熟项目参考。按实际代码核对三种输入、设计与质控、DESeq2及双筛选方案、GO/GMT ORA、fgsea、ssGSEA/limma、ULM、WGCNA、候选基因、图表、归档与尚未实现的边界；说明ZIP不包含qc/quant/index，以及来源记录不是全量FASTQ的SHA256清单。
+- 同一Markdown生成离线HTML、带目录/页码字段/中文样式/表格/超链接的DOCX和版本指纹清单；固定包元数据保证重复生成结果一致。新增AGENTS.md维护规则与GitHub Actions同步检查；CI文件加入仓库不等于已观测GitHub任务运行成功。
+- 36项pytest通过，包含4项新说明书检查：无项目下载、缺失文档响应、Word全章节/表格/链接结构、重复生成与代码变化指纹。`python scripts/build_user_guide.py --check`通过。文档构建依赖单独放在docs/requirements.txt，日常运行工作站不需要安装python-docx。
+- 实际启动独立测试后台并使用Chromium检查：最后的09入口、无分析项目阅读、正文搜索、Word下载SHA256、轮询后页面状态、桌面/手机无横向溢出、独立HTML可阅读，无JS异常。截图在忽略的runs/manual-browser-validation，未发布用户数据。
+- 没有在Windows桌面Microsoft Word中渲染DOCX；已通过Office包完整性、XML内容/目录锚点、下载与生成一致性检查。未重跑已验证的RNA-seq分析链，未访问或改写用户本地D盘；本机更新仍需结束任务后执行更新入口并重启后台。
