@@ -133,3 +133,18 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - 说明书构建支持r2修订号和本地教学图：Word嵌入图像及说明，HTML复制相同图片并限制响应宽度；目录按主单元列出。确认Word与网页不存在未渲染的加粗标记。
 - 37项pytest通过；其中5项说明书检查包含Word嵌图与网页源图逐字节一致、可重复生成、版本日期、下载、目录与教学表规则。实际Chromium检查新手入口、四图加载、全文搜索、Word下载、轮询、桌面和手机无横向溢出通过；截图位于忽略的runs/beginner-manual-validation。
 - 将质控页导入提示明确区分为计数/已有Salmon来源，说明不代表质量不合格；统计和分析算法未修改。未重跑测序/R分析，也没有在本机Microsoft Word中做页面渲染，DOCX验证范围同上一条记录。
+
+## 2026-10-27：方法审查、绘图重构与高级挖掘（教程 r3）
+
+- 对照 DESeq2/tximport、nf-core/rnaseq、fgsea、WGCNA、decoupleR 官方教程或源码；记录在 `docs/ANALYSIS_REVIEW.md`。修正每个 GO ontology 的背景、无效重复 ID 的代表行选择，保留两种 DEG 条件与原始 Wald 排序。
+- `python -m pytest -q`：**47 passed**。覆盖偏相关/自由度/全局 BH、前导零 ID、Salmon 导入校验、单端片段参数、参考流式合并/冲突拒绝、预览不写入、延迟导出、双方案与数据保留/Windows部署等。
+- `tests/check_review.R` 在实际 `mouse-rnaseq:2` R 环境通过：独立计算 GO 的 ontology 背景、选择数、超几何及 BH；有效 ID 折叠；自动 power 排除正 slope / NA；模块富集的网络背景与跨模块 BH；字符元数据和连续表型。`tests/check_mining.R` 的小样本/重复 subject 跳过检查也通过。
+- 真实本地合成项目：6样本 counts、18样本多组+batch+normal shrinkage+ssGSEA+ULM+手动WGCNA、6样本双端 FASTQ+full-decoy、18样本自动power、Salmon导入（前导零样本ID、GENCODE管道符/版本头）均完成。自动power样本没有符合 R²/负slope的值，按设计保留诊断并跳过WGCNA，而非伪造网络。一次并行临时容器曾无法创建R临时目录，结束测试容器后串行重试成功；未清理用户镜像/凭据。
+- FASTQ 测试使用本地生成 reads 与随机参考，未下载官方测试数据：6样本定量、240基因；预设40上调/40下调均显著；映射率均>99%；GSEA上/下方向正确。另实际执行单端Salmon、显式fldMean=250/fldSD=40，映射率100%。这些是计算验证，不是生物学结论或真实小鼠参考的资源基准。
+- 对18样本已保存网络补算模块GO/GMT富集。`tests/check_review_outputs.R` 用独立R `lm`复算30个基因–表型检验：r、df、P一致；全局BH、模块超几何及跨模块BH一致。
+- `scripts/verify_v2.py` 核对6/18样本的精确方案条件、DEG方向、排序、活性矩阵及独立模块–表型相关；`scripts/verify_smoke.py` 核对FASTQ项目的已知效应和真实导出。修正后者寻找v2比较目录的路径。
+- Plotly schema与严格JSON校验覆盖18样本的**48张实例图**；新模块功能图实际导出SVG/PDF/PNG；R1/R2×过滤前/后/两者的质量和碱基曲线共12种组合通过。图表共38种类型，依据项目实际模块与数据展示；未运行的模块不会伪造图表。
+- Chromium：`tests/browser_review.py` 通过近方形画布、预览不改文件、基因标注/点选、保存、核心基因热图、网络、候选证据、偏相关与手机无横向溢出；`tests/browser_results.py` 通过标注拖动持久化、双方案、GSEA不随方案变化、曲线和ZIP；`tests/browser_manual.py` 在独立空项目服务通过搜索、Word下载、刷新、桌面/手机与独立阅读。无JS异常。截图已人工查看；README火山编辑图更新为合成数据的真实页面截图。
+- `windows.deploy.prepare` 实际分阶段复制检查：新 `dataio.py` / `discovery.py`、decoy helper、方法审查、Word和图形资产均包含在不可变程序目录中。无本地Windows远程操作；未宣称用户D盘已更新。
+- `build_user_guide.py --check` 通过：Markdown、HTML、Word与运行代码指纹一致，版本 **2026.10.27-r3**。Word保留四幅入门原理图并新增本次高级操作说明。未使用Microsoft Word GUI进行人工分页渲染。
+- 限制：未用客户数据验证，未在32GB机器建立完整小鼠基因组decoy索引，未声称完成独立队列/因果验证、BAM剪接/变异或细胞组成去卷积。旧任务的原统计不自动重算；新GO背景、调整后关联、模块功能与decoy设置需相应的新任务或明确计算。

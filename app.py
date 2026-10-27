@@ -93,12 +93,18 @@ def fastp_summary(p,m):
         f=p/'qc'/sample/'fastp.json'
         if not f.exists():continue
         data=json.loads(f.read_text());raw=data['summary']['before_filtering'];clean=data['summary']['after_filtering']
-        rows.append(dict(sample=sample,raw_reads=raw['total_reads'],clean_reads=clean['total_reads'],raw_bases=raw['total_bases'],clean_bases=clean['total_bases'],q20_rate=clean['q20_rate'],q30_rate=clean['q30_rate'],gc_content=clean['gc_content'],retained_pct=100*clean['total_reads']/max(1,raw['total_reads']),adapter_trimmed_reads=data.get('adapter_cutting',{}).get('adapter_trimmed_reads',0)))
+        rows.append(dict(sample=sample,raw_reads=raw['total_reads'],clean_reads=clean['total_reads'],raw_bases=raw['total_bases'],clean_bases=clean['total_bases'],q20_rate=clean['q20_rate'],q30_rate=clean['q30_rate'],gc_content=clean['gc_content'],raw_q20_rate=raw['q20_rate'],raw_q30_rate=raw['q30_rate'],raw_gc_content=raw['gc_content'],retained_pct=100*clean['total_reads']/max(1,raw['total_reads']),adapter_trimmed_reads=data.get('adapter_cutting',{}).get('adapter_trimmed_reads',0)))
     if rows:pd.DataFrame(rows).to_csv(p/'fastp-qc.csv',index=False)
 
 def fingerprint(file):
     path = Path(file); s = path.stat()
     return dict(path=str(path.resolve()), size=s.st_size, mtime_ns=s.st_mtime_ns)
+
+def salmon_quant_args(cfg,index,output,files):
+    args=['salmon','quant','-i',str(index),'-l',cfg.get('library','A'),'-p',str(cfg['threads']),
+          '--validateMappings','--seqBias','--gcBias','-o',str(output)]
+    if len(files)==2: return args+['-1',files[0],'-2',files[1]]
+    return args+['-r',files[0],'--fldMean',str(cfg.get('fragment_mean',200)),'--fldSD',str(cfg.get('fragment_sd',80))]
 
 def execute(p):
     try:
@@ -127,10 +133,14 @@ def execute(p):
                 step(p, 'qc', 'completed', 'fastp 质量过滤完成')
             else: step(p, 'qc', 'skipped', '输入为已处理 FASTQ，跳过 fastp')
             step(p, 'quant', 'running', 'Salmon 建索引与定量')
-            signature = fingerprint(cfg['transcripts'])
+            signature = dict(transcripts=fingerprint(cfg['transcripts']),genome=fingerprint(cfg['genome']) if cfg.get('genome') else None)
             marker = p/'index-complete.json'
             if not marker.exists() or json.loads(marker.read_text()) != signature:
-                command(p, ['salmon','index','-t',cfg['transcripts'],'-i',str(p/'index'),'-p',str(cfg['threads'])], [cfg['transcripts']])
+                transcript=cfg['transcripts'];extra=[]
+                if cfg.get('genome'):
+                    command(p,[sys.executable,str(ROOT/'scripts/prepare_decoy.py'),transcript,cfg['genome'],str(p/'reference')],analysis_tool=False)
+                    transcript=str(p/'reference/gentrome.fa');extra=['--decoys',str(p/'reference/decoys.txt')]
+                command(p, ['salmon','index','-t',transcript,'-i',str(p/'index'),'-p',str(cfg['threads'])]+extra, [transcript])
                 save(marker, signature)
             for _, s in m.iterrows():
                 q = p/'quant'/s['sample']; done = q/'complete.json'
@@ -141,9 +151,7 @@ def execute(p):
                 if cfg['preprocess'] == 'fastp':
                     qcp = p/'qc'/s['sample']
                     files = [str(qcp/'R1.fastq.gz')] + ([str(qcp/'R2.fastq.gz')] if 'fastq2' in m else [])
-                args = ['salmon','quant','-i',str(p/'index'),'-l',cfg.get('library','A'),'-p',str(cfg['threads']),
-                        '--validateMappings','--seqBias','--gcBias','-o',str(q)]
-                args += ['-1',files[0],'-2',files[1]] if 'fastq2' in m else ['-r',files[0]]
+                args = salmon_quant_args(cfg,p/'index',q,files)
                 command(p,args,files)
                 save(done, signature)
             step(p,'quant','completed','Salmon 定量完成')
@@ -165,12 +173,19 @@ def execute(p):
             pd.DataFrame(qc).to_csv(p/'salmon-qc.csv',index=False)
         step(p,'statistics','running','DESeq2 / fgsea / GSVA / WGCNA')
         command(p,['Rscript',str(ROOT/'scripts/analyze.R'),str(p)])
+        from discovery import run_discovery
+        run_discovery(p)
         step(p,'statistics','completed','统计与数据挖掘完成')
         step(p,'visuals','running','生成诊断图与分析报告')
         from plots import render, chart_catalog
+        plot_errors=[]
         for entry in chart_catalog(p):
             target=contrast_path(p,entry.get('contrast'))
-            with render_lock: render(target,entry['kind'],{})
+            try:
+                with render_lock: render(target,entry['kind'],{})
+            except (ValueError,KeyError,TypeError,IndexError) as error:
+                plot_errors.append(dict(kind=entry['kind'],contrast=entry.get('contrast'),error=str(error)))
+        save(p/'plot-warnings.json',plot_errors)
         multiqc=Path(sys.executable).parent/'multiqc'
         if cfg['mode']=='fastq' and multiqc.is_file():
             command(p,[str(multiqc),str(p/'qc'),str(p/'quant'),'-o',str(p/'multiqc'),'--force','--no-ansi','--quiet'],analysis_tool=False)
@@ -178,6 +193,7 @@ def execute(p):
         build_report(p)
         step(p,'visuals','completed','图表与报告已生成')
         warnings=[]
+        if plot_errors: warnings.append(f'{len(plot_errors)} 张图未成功导出；统计表已保留，详情见 plot-warnings.json，可调整后重绘。')
         if (p/'annotation-warning.txt').exists(): warnings.append((p/'annotation-warning.txt').read_text().strip())
         if cfg['significance']=='pvalue': warnings.append('采用未校正 P 值筛选；没有控制差异基因的 FDR。')
         if (p/'salmon-qc.csv').exists():
@@ -254,6 +270,7 @@ def preflight():
     warnings=[]
     if min(m.groupby('group').size())<3: warnings.append('存在每组仅2个生物学重复的情况，推荐≥3。')
     if cfg['significance']=='pvalue': warnings.append('未校正P值不能控制FDR，默认建议使用BH padj。')
+    if cfg['mode']=='fastq' and not cfg.get('genome'): warnings.append('未提供匹配版本基因组：使用无 decoy 的转录组索引。正式分析建议 full-decoy；本工作站支持可选基因组 FASTA。')
     if cfg['wgcna'] and len(m)<15: warnings.append('WGCNA 将跳过：独立样本不足15个，推荐≥20。')
     if not cfg.get('annotation'): warnings.append('未指定离线注释；GO/Entrez/Symbol映射将尝试容器中的 org.Mm.eg.db。')
     return jsonify(samples=m.to_dict('records'),groups=m.groupby('group').size().to_dict(),comparisons=cfg['comparisons'],covariates=cfg['covariates'],warnings=warnings,output_free_gb=round(shutil.disk_usage(RUNS).free/2**30,1))
@@ -276,11 +293,16 @@ def create():
     inputs=[fingerprint(cfg['samples'])]
     for key,name in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv')]:
         if cfg.get(key): shutil.copyfile(cfg[key],p/name);inputs.append(fingerprint(cfg[key]))
-    if cfg['mode']=='counts': read_table(cfg['counts'],index_col=0)[m['sample']].to_csv(p/'counts.csv');inputs.append(fingerprint(cfg['counts']))
+    if cfg['mode']=='counts': read_table(cfg['counts'],index_col=0,converters={0:str})[m['sample']].to_csv(p/'counts.csv');inputs.append(fingerprint(cfg['counts']))
     else:
         read_table(cfg['tx2gene'],dtype=str).to_csv(p/'tx2gene.tsv',sep='\t',index=False)
+        inputs.append(fingerprint(cfg['tx2gene']))
+        if cfg['mode']=='fastq':
+            inputs.append(fingerprint(cfg['transcripts']))
+            if cfg.get('genome'): inputs.append(fingerprint(cfg['genome']))
         if cfg['mode']=='salmon':
             for _,s in m.iterrows():
+                inputs.append(fingerprint(s['quant']))
                 q=p/'quant'/s['sample'];q.mkdir(parents=True)
                 shutil.copyfile(s['quant'],q/'quant.sf'); original=Path(s['quant']).parent
                 for name in ('aux_info/meta_info.json','lib_format_counts.json','cmd_info.json'):
@@ -372,6 +394,31 @@ def plot(job):
     from results import build_report
     build_report(p)
     return jsonify(file=(f'contrasts/{contrast}/' if contrast else '')+kind+'.svg')
+
+@app.post('/api/jobs/<job>/preview')
+def preview(job):
+    p=runpath(job)
+    if json.loads((p/'status.json').read_text())['state']!='completed': raise ValueError('请等待分析完成')
+    from plots import interactive_data
+    cfg=dict(request.get_json());kind=cfg.pop('kind','volcano');contrast=cfg.pop('contrast',None)
+    return jsonify(interactive_data(p,kind,dict(contrast=contrast),cfg))
+
+@app.get('/api/jobs/<job>/chart-download/<kind>/<fmt>')
+def chart_download(job,kind,fmt):
+    p=runpath(job)
+    if json.loads((p/'status.json').read_text())['state']!='completed': raise ValueError('请等待分析完成')
+    from plots import LABELS,render
+    if kind not in LABELS or fmt not in ('svg','pdf','png','plot-data.csv','plot-data.json','settings.json'):
+        raise ValueError('未知图表或导出格式')
+    q=contrast_path(p,request.args.get('contrast'));file=q/(kind+'.'+fmt)
+    settings=q/(kind+'.settings.json')
+    current=json.loads(settings.read_text()) if settings.exists() else {}
+    if not file.exists() or current.get('style_version',0)<3:
+        with render_lock: render(q,kind,{})
+        from results import build_report
+        build_report(p)
+    if not file.is_file(): raise ValueError('此图使用另一种绘图数据格式，请选择对应 CSV 或 JSON')
+    return send_file(file,as_attachment=True,download_name=file.name)
 
 @app.get('/api/jobs/<job>/bundle')
 def bundle(job):

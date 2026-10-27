@@ -12,12 +12,12 @@ from datetime import datetime, timezone
 SERVICE = 'mouse-bulk-rnaseq'
 DIRECTORIES = ['程序', '原始数据', '参考文件', '分析结果', '导出报告', '日志', '配置']
 SOURCE_DIRS = {'scripts', 'static', 'vendor', 'windows', 'docs', 'tests'}
-SOURCE_FILES = {'app.py', 'plots.py', 'results.py', 'validation.py', 'requirements.txt',
+SOURCE_FILES = {'app.py', 'plots.py', 'results.py', 'validation.py', 'dataio.py', 'discovery.py', 'requirements.txt',
                 'install.sh', 'launch.sh', 'Dockerfile', 'Dockerfile.annotation',
                 'README.md', 'VALIDATION.md', 'pytest.ini', '.gitignore', '.gitattributes',
                 '启动工作站.bat', '部署到D盘.bat', '检查环境.bat', '更新工作站.bat', '部署到D盘.sh'}
 IGNORE = {'.git', '.venv', 'runs', '__pycache__', '.cache', '.pytest_cache'}
-REQUIRED = ['app.py', 'install.sh', 'launch.sh', 'requirements.txt',
+REQUIRED = ['app.py', 'dataio.py', 'discovery.py', 'install.sh', 'launch.sh', 'requirements.txt',
             'windows/Workstation.ps1', 'windows/Station.ps1', 'windows/wsl_entry.sh']
 
 

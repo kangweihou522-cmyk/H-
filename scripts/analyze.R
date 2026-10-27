@@ -5,23 +5,25 @@ script <- sub('^--file=','',grep('^--file=',commandArgs(),value=TRUE))
 # Rscript encodes spaces as ~+~ in --file. The app supplies the exact mounted path.
 script_dir<-Sys.getenv('RNASEQ_SCRIPT_DIR',unset=dirname(gsub('~+~',' ',script,fixed=TRUE)))
 source(file.path(script_dir,'enrichment.R'));source(file.path(script_dir,'mining.R'))
-m<-read.csv(file.path(root,'samples.csv'),check.names=FALSE,stringsAsFactors=FALSE);rownames(m)<-m$sample
+m<-read.csv(file.path(root,'samples.csv'),check.names=FALSE,colClasses='character');rownames(m)<-m$sample
 m$group<-relevel(factor(m$group),cfg$control)
 for(c in cfg$covariates)m[[c$name]]<-if(c$type=='numeric')as.numeric(m[[c$name]]) else factor(m[[c$name]])
 design<-reformulate(c(vapply(cfg$covariates,`[[`,character(1),'name'),'group'))
 mm<-model.matrix(design,m);if(qr(mm)$rank<ncol(mm)||nrow(mm)<=ncol(mm))stop('Design is confounded or lacks residual degrees of freedom.')
 if(file.exists(file.path(root,'counts.csv'))){
- counts<-read.csv(file.path(root,'counts.csv'),row.names=1,check.names=FALSE)
+ counts<-read.csv(file.path(root,'counts.csv'),row.names=1,check.names=FALSE,colClasses=c('character',rep('numeric',nrow(m))))
  dds<-DESeqDataSetFromMatrix(as.matrix(counts[,m$sample,drop=FALSE]),m,design)
 }else{
  files<-file.path(root,'quant',m$sample,'quant.sf');names(files)<-m$sample
  map<-read.delim(file.path(root,'tx2gene.tsv'),header=TRUE,colClasses='character')
- txi<-tximport(files,type='salmon',tx2gene=map[,1:2],ignoreTxVersion=TRUE)
+ map[[1]]<-sub('\\..*$','',sub('\\|.*$','',map[[1]]))
+ txi<-tximport(files,type='salmon',tx2gene=map[,1:2],ignoreTxVersion=TRUE,ignoreAfterBar=TRUE)
  write.csv(txi$abundance,file.path(root,'tpm.csv'))
  dds<-DESeqDataSetFromTximport(txi,m,design)
 }
 raw_all<-counts(dds);before<-nrow(dds);dds<-dds[rowSums(counts(dds)>=cfg$min_count)>=cfg$min_samples,];if(nrow(dds)<10)stop('Too few expressed genes after filtering')
 dds<-DESeq(dds,quiet=TRUE)
+write.csv(mm,file.path(root,'design-matrix.csv'))
 norm<-counts(dds,normalized=TRUE);vs<-assay(varianceStabilizingTransformation(dds,blind=FALSE))
 write.csv(raw_all,file.path(root,'raw-counts.csv'));write.csv(norm,file.path(root,'normalized.csv'));write.csv(vs,file.path(root,'vst.csv'))
 pca_genes<-order(apply(vs,1,var),decreasing=TRUE)[seq_len(min(500,nrow(vs)))]
@@ -31,7 +33,7 @@ write.csv(data.frame(PC=seq_along(pca$sdev),variance=pca$sdev^2/sum(pca$sdev^2))
 write.csv(cor(vs),file.path(root,'sample-correlation.csv'));write.csv(as.matrix(dist(t(vs))),file.path(root,'sample-distance.csv'))
 qc<-data.frame(sample=m$sample,group=m$group,library_size=colSums(raw_all),detected_genes=colSums(raw_all>0),median_normalized=apply(norm,2,median),size_factor=if(is.null(sizeFactors(dds)))NA_real_ else sizeFactors(dds))
 write.csv(qc,file.path(root,'sample-qc.csv'),row.names=FALSE)
-disp<-data.frame(gene=rownames(dds),baseMean=rowMeans(norm),dispersion=dispersions(dds),cooks_max=apply(assays(dds)[['cooks']],1,max,na.rm=TRUE));write.csv(disp,file.path(root,'dispersion.csv'),row.names=FALSE)
+disp<-data.frame(gene=rownames(dds),baseMean=rowMeans(norm),dispersion=dispersions(dds),dispersion_gene=mcols(dds)$dispGeneEst,dispersion_fit=mcols(dds)$dispFit,cooks_max=apply(assays(dds)[['cooks']],1,max,na.rm=TRUE));write.csv(disp,file.path(root,'dispersion.csv'),row.names=FALSE)
 annotation<-load_annotation(rownames(dds),root,cfg)
 if(!is.null(annotation$warning))writeLines(annotation$warning,file.path(root,'annotation-warning.txt'))
 write_json(list(go=annotation$go,pathway=annotation$gmt,go_desc=as.list(annotation$go_desc),pathway_desc=as.list(annotation$gmt_desc)),file.path(root,'gene-sets.json'),auto_unbox=TRUE)
@@ -52,7 +54,7 @@ for(cmp in cfg$comparisons){
  # fgsea is run once on all retained ranked genes, independent of DEG profile.
  for(profile in names(profiles)){
   spec<-profiles[[profile]];rp<-r
-  rp$significant<-!is.na(rp[[spec$column]]) & rp[[spec$column]]<spec$alpha & abs(rp$log2FoldChange)>spec$lfc
+  rp$significant<-is.finite(rp[[spec$column]]) & is.finite(rp$log2FoldChange) & rp[[spec$column]]<spec$alpha & abs(rp$log2FoldChange)>spec$lfc
   rp$direction<-ifelse(rp$significant,ifelse(rp$log2FoldChange>0,'up','down'),'not_significant')
   pp<-file.path(directory,'profiles',profile);dir.create(pp,recursive=TRUE,showWarnings=FALSE)
   write.csv(rp,file.path(pp,'differential.csv'),row.names=FALSE)
@@ -68,7 +70,7 @@ for(cmp in cfg$comparisons){
  write_json(chosen,file.path(directory,'active-profile.json'),auto_unbox=TRUE,pretty=TRUE)
  r<-read.csv(file.path(directory,'differential.csv'),check.names=FALSE)
 
- summary[[cmp$name]]<-list(name=cmp$name,control=cmp$control,treatment=cmp$treatment,tested=nrow(r),up=sum(r$direction=='up'),down=sum(r$direction=='down'),significance=chosen$column,alpha=chosen$alpha,lfc=chosen$lfc,shrinkage=cfg$shrinkage,active_profile=active,profiles=profile_counts)
+ summary[[cmp$name]]<-list(name=cmp$name,control=cmp$control,treatment=cmp$treatment,tested=nrow(r),up=sum(r$direction=='up'),down=sum(r$direction=='down'),significance=chosen$column,alpha=chosen$alpha,lfc=chosen$lfc,shrinkage=cfg$shrinkage,missing_pvalue=sum(!is.finite(r$pvalue)),independent_filtered=sum(is.finite(r$pvalue)&!is.finite(r$padj)),rank_ties=sum(duplicated(r$stat[is.finite(r$stat)])),active_profile=active,profiles=profile_counts)
 }
 # Preserve first-contrast paths for existing projects and scripts.
 first<-file.path(root,'contrasts',cfg$comparisons[[1]]$name)

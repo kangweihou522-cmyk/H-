@@ -11,11 +11,13 @@ load_annotation <- function(genes, root, cfg) {
   k <- intersect(ids, AnnotationDbi::keys(db, keytype='ENSEMBL'))
   if (!length(k)) stop('No Ensembl mouse IDs matched org.Mm.eg.db. Check reference / identifiers.')
   a <- AnnotationDbi::select(db, keys=k, keytype='ENSEMBL', columns=c('SYMBOL','ENTREZID','GOALL','ONTOLOGYALL'))
+  a <- a[,c('ENSEMBL','SYMBOL','ENTREZID','GOALL','ONTOLOGYALL')]
   names(a) <- c('id','symbol','entrez','go','ontology')
  } else {
   a <- data.frame(id=ids, symbol=NA_character_, entrez=NA_character_, go=NA_character_, ontology=NA_character_)
   warning <- 'GO annotation unavailable: install org.Mm.eg.db or supply a real offline annotation TSV.'
  }
+ a$id <- sub('\\..*$', '', a$id)
  a <- a[a$id %in% ids, , drop=FALSE]
  ann <- unique(a[!is.na(a$go) & nzchar(a$go), c('id','go','ontology')])
  if (!nrow(ann)) warning <- 'GO not run: zero genes with GO annotation.'
@@ -39,6 +41,13 @@ load_annotation <- function(genes, root, cfg) {
 }
 empty_ora <- function() data.frame(term=character(),description=character(),ontology=character(),direction=character(),overlap=integer(),size=integer(),selected=integer(),background=integer(),gene_ratio=numeric(),rich_factor=numeric(),pvalue=numeric(),padj=numeric(),genes=character())
 ora <- function(sets, desc, universe, selected, ontology, cfg) {
+ # Each ontology has its own annotation coverage and hypergeometric universe.
+ if(length(ontology) && length(unique(ontology))>1){
+  return(do.call(rbind,lapply(sort(unique(ontology)),function(o){
+   keys<-names(ontology)[ontology==o]
+   ora(sets[keys],desc,universe,selected,ontology[keys],cfg)
+  })))
+ }
  universe <- intersect(unique(universe), unique(unlist(sets)))
  selected <- intersect(unique(selected), universe)
  eligible <- lapply(sets, intersect, y=universe)
@@ -62,7 +71,7 @@ gsea <- function(sets,desc,ranks,ontology,cfg) {
 }
 run_enrichment <- function(r,annotation,directory,cfg,run_gsea=TRUE) {
  # ID collapse uses the highest mean expression, not the most significant statistic.
- r <- r[order(r$baseMean,decreasing=TRUE),]
+ r <- r[order(-r$baseMean,r$gene,na.last=TRUE),]
  ids <- sub('\\..*$', '',r$gene)
  map <- annotation$mapped[match(r$gene,annotation$mapped$gene),]
  gene_types <- list(go=ids, pathway=if(cfg$gmt_id=='ENSEMBL')ids else if(cfg$gmt_id=='SYMBOL')map$symbol else map$entrez)
@@ -71,7 +80,8 @@ run_enrichment <- function(r,annotation,directory,cfg,run_gsea=TRUE) {
   desc <- if(database=='go')annotation$go_desc else annotation$gmt_desc
   ont <- if(database=='go')annotation$ontology else character()
   mapped <- gene_types[[database]]
-  keep <- !is.na(mapped) & nzchar(mapped) & !duplicated(mapped) & is.finite(r$stat)
+  valid <- !is.na(mapped) & nzchar(mapped) & is.finite(r$stat)
+  keep <- valid;keep[valid] <- !duplicated(mapped[valid])
   ranks <- sort(setNames(r$stat[keep],mapped[keep]),decreasing=TRUE)
   if(database=='pathway' && length(sets) && !length(intersect(names(ranks),unique(unlist(sets)))))stop('GMT genes match zero tested genes; check gene ID type and annotation.')
   selection <- list(all=r$significant,up=r$significant & r$log2FoldChange>0,down=r$significant & r$log2FoldChange<0)

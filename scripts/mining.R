@@ -4,6 +4,8 @@ trait_matrix <- function(m,selected) {
  columns<-list()
  for(name in selected){
   x<-m[[name]]
+  numeric<-suppressWarnings(as.numeric(as.character(x)))
+  if(name!='group' && all(is.finite(numeric)))x<-numeric
   if(is.numeric(x) && length(unique(x))>1)columns[[name]]<-x
   else if(length(unique(x))>1){
    for(level in sort(unique(as.character(x))))columns[[paste(name,level,sep='=')]]<-as.numeric(as.character(x)==level)
@@ -17,9 +19,37 @@ contrast_vector <- function(m,design,cmp) {
  template$group<-factor(c(cmp$treatment,cmp$control),levels=levels(m$group))
  x<-model.matrix(design,template);x[1,]-x[2,]
 }
+select_soft_power <- function(fits,mode,manual) {
+ if(is.null(mode)||mode=='manual')return(manual)
+ pass<-fits$Power[is.finite(fits$SFT.R.sq) & is.finite(fits$slope) & fits$slope<0 & fits$SFT.R.sq>=.85]
+ if(length(pass))min(pass) else NA_real_
+}
+module_enrichment <- function(modules,norm,annotation,root,cfg){
+ # Universe is all genes entered into this network (including unassigned grey),
+ # not the whole genome or only DEGs. Adjust across module x term within ontology.
+ modules<-modules[order(-rowMeans(norm[modules$gene,,drop=FALSE]),modules$gene),]
+ map<-annotation$mapped[match(modules$gene,annotation$mapped$gene),]
+ outputs<-list()
+ for(database in c('go','pathway')){
+  ids<-if(database=='go'||cfg$gmt_id=='ENSEMBL')map$id else if(cfg$gmt_id=='SYMBOL')map$symbol else map$entrez
+  valid<-!is.na(ids)&nzchar(ids);valid[valid]<-!duplicated(ids[valid])
+  sets<-if(database=='go')annotation$go else annotation$gmt
+  desc<-if(database=='go')annotation$go_desc else annotation$gmt_desc
+  ont<-if(database=='go')annotation$ontology else character()
+  for(module in setdiff(unique(modules$module),'grey')){
+   x<-ora(sets,desc,ids[valid],ids[valid & modules$module==module],ont,cfg)
+   if(nrow(x)){x$module<-module;x$database<-database;outputs[[length(outputs)+1]]<-x}
+  }
+ }
+ if(length(outputs)){
+  out<-do.call(rbind,outputs);out$padj<-ave(out$pvalue,interaction(out$database,out$ontology,drop=TRUE),FUN=function(x)p.adjust(x,'BH'))
+  write.csv(out,file.path(root,'wgcna-module-enrichment.csv'),row.names=FALSE)
+ }
+}
 run_mining <- function(vs,norm,m,mm,annotation,root,cfg) {
  mining<-list(pathway_activity=list(state='skipped',reason='No GMT supplied or activity disabled'),wgcna=list(state='skipped',reason='Not selected'))
  traits<-trait_matrix(m,cfg$traits)
+ independent<-if('subject'%in%names(m))length(unique(m$subject)) else nrow(m)
  write.csv(traits,file.path(root,'traits.csv'))
  if(cfg$pathway_activity && length(annotation$gmt)){
   ids<-if(cfg$gmt_id=='ENSEMBL')annotation$mapped$id else if(cfg$gmt_id=='SYMBOL')annotation$mapped$symbol else annotation$mapped$entrez
@@ -37,12 +67,13 @@ run_mining <- function(vs,norm,m,mm,annotation,root,cfg) {
     r<-limma::topTable(model,coef=1,number=Inf,sort.by='P');r$term<-rownames(r)
     r$description<-unname(annotation$gmt_desc[r$term]);write.csv(r,file.path(root,'contrasts',cmp$name,'pathway-activity-differential.csv'),row.names=FALSE)
    }
-   if(ncol(traits)){
+   if(ncol(traits) && independent==nrow(m)){
     cor<-cor(t(activity),traits);p<-WGCNA::corPvalueStudent(cor,nrow(m))
     rows<-expand.grid(term=rownames(cor),trait=colnames(cor),stringsAsFactors=FALSE);rows$correlation<-as.vector(cor);rows$pvalue<-as.vector(p);rows$padj<-p.adjust(rows$pvalue,'BH')
     write.csv(rows,file.path(root,'pathway-trait.csv'),row.names=FALSE)
    }
    mining$pathway_activity<-list(state='completed',method='GSVA ssGSEA; VST expression; limma moderated test with the same covariates',sets=nrow(activity))
+   if(independent<nrow(m))mining$pathway_activity$trait_association<-'Skipped raw trait association: repeated subjects require a repeated-measures model.'
   }else mining$pathway_activity<-list(state='skipped',reason='No gene sets passed size/mapping filters')
  }
  if(cfg$wgcna){
@@ -59,18 +90,31 @@ run_mining <- function(vs,norm,m,mm,annotation,root,cfg) {
    if(cfg$threads>=2)WGCNA::allowWGCNAThreads(nThreads=cfg$threads) else WGCNA::disableWGCNAThreads()
    soft<-WGCNA::pickSoftThreshold(dat,powerVector=c(1:10,12,14,16,18,20),networkType='signed',verbose=0)
    write.csv(soft$fitIndices,file.path(root,'wgcna-soft-threshold.csv'),row.names=FALSE)
-   net<-WGCNA::blockwiseModules(dat,power=cfg$wgcna_power,networkType='signed',TOMType='signed',minModuleSize=30,maxBlockSize=3000,mergeCutHeight=.25,nThreads=cfg$threads,verbose=0,randomSeed=42)
-   eig<-WGCNA::orderMEs(net$MEs);write.csv(eig,file.path(root,'wgcna-eigengenes.csv'))
+   power<-select_soft_power(soft$fitIndices,cfg$wgcna_power_mode,cfg$wgcna_power)
+   if(!is.finite(power)){
+     mining$wgcna<-list(state='skipped',reason='No power reached signed scale-free fit R2 >= 0.85 with negative slope. Review diagnostics; choose a justified manual power in a new job.')
+     mining$regulatory_activity<-regulatory_activity(vs,norm,m,mm,annotation,root,cfg)
+     write_json(mining,file.path(root,'mining-status.json'),auto_unbox=TRUE,pretty=TRUE);return(invisible(NULL))
+   }
+   net<-WGCNA::blockwiseModules(dat,power=power,networkType='signed',TOMType='signed',minModuleSize=30,maxBlockSize=3000,mergeCutHeight=.25,nThreads=cfg$threads,verbose=0,randomSeed=42)
+   if(all(net$colors=='grey')){
+    write.csv(data.frame(gene=colnames(dat),module='grey',kME=NA_real_),file.path(root,'wgcna-modules.csv'),row.names=FALSE)
+    mining$wgcna<-list(state='skipped',reason='No non-grey coexpression modules detected; diagnostics retained.')
+    mining$regulatory_activity<-regulatory_activity(vs,norm,m,mm,annotation,root,cfg)
+    write_json(mining,file.path(root,'mining-status.json'),auto_unbox=TRUE,pretty=TRUE);return(invisible(NULL))
+   }
+   eig<-WGCNA::orderMEs(net$MEs);eig<-eig[,colnames(eig)!='MEgrey',drop=FALSE];write.csv(eig,file.path(root,'wgcna-eigengenes.csv'))
    kme<-WGCNA::signedKME(dat,eig)
-   membership<-vapply(seq_len(ncol(dat)),function(i){col<-match(paste0('kME',net$colors[i]),colnames(kme));if(is.na(col))NA_real_ else kme[i,col]},numeric(1))
+   membership<-vapply(seq_len(ncol(dat)),function(i){col<-match(paste0('kME',net$colors[i]),colnames(kme));if(is.na(col)||net$colors[i]=='grey')NA_real_ else kme[i,col]},numeric(1))
    modules<-data.frame(gene=colnames(dat),module=net$colors,kME=membership);write.csv(modules,file.path(root,'wgcna-modules.csv'),row.names=FALSE)
+   module_enrichment(modules,norm,annotation,root,cfg)
    if(ncol(traits)){
     cor<-cor(eig,traits);p<-WGCNA::corPvalueStudent(cor,nrow(m));rows<-expand.grid(module=rownames(cor),trait=colnames(cor),stringsAsFactors=FALSE);rows$correlation<-as.vector(cor);rows$pvalue<-as.vector(p);rows$padj<-p.adjust(rows$pvalue,'BH');write.csv(rows,file.path(root,'wgcna-module-trait.csv'),row.names=FALSE)
    }
-   hubs<-head(modules$gene[order(abs(modules$kME),decreasing=TRUE)],120);edges<-cor(dat[,hubs,drop=FALSE]);adj<-((1+edges)/2)^cfg$wgcna_power;idx<-which(upper.tri(adj)&adj>.2,arr.ind=TRUE)
+   hubs<-head(modules$gene[order(abs(modules$kME),decreasing=TRUE,na.last=NA)],120);edges<-cor(dat[,hubs,drop=FALSE]);adj<-((1+edges)/2)^power;idx<-which(upper.tri(adj)&adj>.2,arr.ind=TRUE)
    if(nrow(idx)){out<-data.frame(source=rownames(adj)[idx[,1]],target=colnames(adj)[idx[,2]],weight=adj[idx]);out<-head(out[order(out$weight,decreasing=TRUE),],500)}else out<-data.frame(source=character(),target=character(),weight=numeric())
    write.csv(out,file.path(root,'wgcna-network.csv'),row.names=FALSE)
-   mining$wgcna<-list(state='completed',method='WGCNA signed network; VST; top variable genes; raw module/trait Pearson associations; BH',samples=nrow(dat),genes=ncol(dat),power=cfg$wgcna_power,modules=length(unique(net$colors)))
+   mining$wgcna<-list(state='completed',method='WGCNA signed network; VST; top variable genes; raw module/trait Pearson associations; BH',samples=nrow(dat),genes=ncol(dat),power=power,power_mode=if(is.null(cfg$wgcna_power_mode))'manual' else cfg$wgcna_power_mode,modules=length(setdiff(unique(net$colors),'grey')))
   }
  }
  mining$regulatory_activity<-regulatory_activity(vs,norm,m,mm,annotation,root,cfg)

@@ -85,7 +85,7 @@ T2,Treatment,/data/T2_R1.fastq.gz,/data/T2_R2.fastq.gz,B2,2.8
 
 默认fastp质量碱基阈值20、最短长度30，双端检测接头；可在界面调整或为已质控的FASTQ选择跳过。保存fastp JSON/HTML、过滤前后reads、Q20/Q30、GC与碱基曲线，生成MultiQC。不要把报告示例的最短150bp参数直接套到100bp测序。
 
-Salmon开启 selective alignment、seqBias、gcBias。`A`自动判断，双端IU/ISR/ISF，单端U/SR/SF；以建库试剂说明和Salmon方向记录为准。当前使用转录本索引，未集成基因组decoy索引。Salmon记录的fragment mapping不是基因组unique mapping。
+Salmon开启 selective alignment、seqBias、gcBias。`A`自动判断，双端IU/ISR/ISF，单端U/SR/SF；以建库试剂说明和Salmon方向记录为准。可选提供匹配基因组FASTA（genome）构建full-decoy索引；未提供时使用转录本索引并提示限制。Salmon记录的fragment mapping不是基因组unique mapping。
 
 ### 已有结果
 
@@ -155,3 +155,5 @@ PCA主成分/分组配色、热图聚类/自选基因/Symbol/分组色条、基�
 见 [VALIDATION.md](VALIDATION.md)。使用本地合成FASTQ/计数/注释/GMT/调控网络，运行真实工具，不依赖官方测试reads下载。实际实验需确认设计、参考版本、注释和实验QC；没有把合成验证当作真实生物学发现。
 
 原报告中的基因组区域分布、基因体覆盖、IGV、新转录本、rMATS剪接、GATK/SnpEff变异与STRING蛋白互作需要独立BAM/资源模块，未由本主线执行，不从Salmon推算。核心R/浏览器代码来源和许可见 [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md)。服务仅监听本机loopback，不直接暴露公网。
+
+本轮方法/图形审查：见 [ANALYSIS_REVIEW.md](docs/ANALYSIS_REVIEW.md) 和教程第27章。新增居中画布/预览/丰富调节、核心富集热图、通路重叠网络、跨比较DEG重叠、候选证据整合与调整后基因–表型探索；新统计结果需新建任务，旧任务不会被自动重算。

@@ -54,3 +54,7 @@ nominal 未控制多重检验的 FDR，适用于明确标注的探索；本工�
 ## 需要 BAM 的报告扩展
 
 用户报告中的 HISAT2 基因组比对、外显子/内含子分布、IGV、StringTie 新转录本、rMATS 剪接和 GATK/SnpEff 变异分析，不能从 Salmon quant.sf 推算。它们未被本工作站主线执行。可以另用 nf-core/rnaseq 生成基因组 BAM，再运行对应成熟模块；小鼠基因组/品系/注释版本需匹配。没有把这些模块显示成“已完成”。蛋白互作也需要 STRING 等真实互动资源，不把表达相关性当作蛋白互作。
+
+## 2026-10-27 方法与图形修订
+
+GO背景按BP/CC/MF分开；Salmon可选匹配基因组full-decoy；WGCNA提供自动/手动power与模块功能富集；新增调整后基因–表型关联、候选证据表、leading-edge热图和通路重叠网络。具体假设、校正范围、输入限制和旧任务兼容见 [方法审查](ANALYSIS_REVIEW.md) 与 [教程第27章](USER_GUIDE.md)。

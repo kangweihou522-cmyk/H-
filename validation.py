@@ -92,6 +92,8 @@ def validate(cfg):
                 raise ValueError('数值协变量无变异或含非有限值：' + name)
             matrix.append(values[:, None])
         elif c.get('type', 'categorical') == 'categorical':
+            if m[name].nunique() < 2:
+                raise ValueError('分类协变量只有一个水平，请移除此协变量：' + name)
             matrix.append(pd.get_dummies(m[name], drop_first=True, dtype=float).to_numpy())
         else:
             raise ValueError('协变量类型只能为 categorical 或 numeric')
@@ -118,20 +120,22 @@ def validate(cfg):
     if not isinstance(cfg['traits'], list):
         raise ValueError('表型列必须为列表')
     for trait in cfg['traits']:
-        if trait not in m or trait in ('sample', 'fastq1', 'fastq2', 'quant') or (m[trait] == '').any():
+        if trait not in m or trait in ('sample', 'subject', 'fastq1', 'fastq2', 'quant') or (m[trait] == '').any():
             raise ValueError('表型列缺失或无效：' + str(trait))
     if mode == 'counts':
-        table = read_table(local_file(cfg.get('counts')), index_col=0)
-        if table.index.has_duplicates or table.index.isna().any() or not set(m['sample']).issubset(table.columns):
+        table = read_table(local_file(cfg.get('counts')), index_col=0, converters={0:str})
+        if table.index.has_duplicates or table.index.isna().any() or (table.index.astype(str).str.strip()=='').any() or not set(m['sample']).issubset(table.columns):
             raise ValueError('计数矩阵基因须唯一，列须包含所有样本')
         values = table[m['sample']].to_numpy(dtype=float)
         if not np.isfinite(values).all() or (values < 0).any() or not np.equal(values, np.floor(values)).all():
             raise ValueError('DESeq2 需要非负整数原始计数；不能使用 TPM/FPKM')
         if (values.sum(axis=0) == 0).any():
             raise ValueError('样本总计数不能为0')
+        if (values > np.iinfo(np.int32).max).any():
+            raise ValueError('单基因原始计数超过 DESeq2 整数范围，请核对是否误用其他数据')
     else:
         mapping = read_table(local_file(cfg.get('tx2gene')), dtype=str)
-        if mapping.shape[1] != 2 or mapping.isna().any().any() or mapping.iloc[:, 0].str.replace(r'\..*$', '', regex=True).duplicated().any():
+        if mapping.shape[1] != 2 or mapping.isna().any().any() or mapping.iloc[:, 0].str.replace(r'\|.*$', '', regex=True).str.replace(r'\..*$', '', regex=True).duplicated().any():
             raise ValueError('tx2gene 需要带表头的两列，转录本（去版本号后）须唯一')
         if mode == 'fastq':
             local_file(cfg.get('transcripts'))
@@ -144,21 +148,37 @@ def validate(cfg):
                     if (m[col] == '').any():
                         raise ValueError('同一任务不能混合单端和双端')
                     m[col] = [str(local_file(f)) for f in m[col]]
+            files=[path for col in ('fastq1','fastq2') if col in m for path in m[col]]
+            if len(files)!=len(set(files)):
+                raise ValueError('同一个 FASTQ 被重复使用；R1/R2 和不同样本必须使用各自文件，不能复制为生物学重复')
             cfg['preprocess'] = cfg.get('preprocess', 'fastp')
             if cfg['preprocess'] not in ('fastp', 'none'):
                 raise ValueError('未知预处理方式')
             cfg['quality'] = bounded(cfg.get('quality', 20), 5, 35, 'fastp Q阈值', int)
             cfg['length'] = bounded(cfg.get('length', 30), 20, 250, 'fastp 最短长度', int)
+            cfg['fragment_mean'] = bounded(cfg.get('fragment_mean',200),30,2000,'单端片段长度均值')
+            cfg['fragment_sd'] = bounded(cfg.get('fragment_sd',80),1,1000,'单端片段长度标准差')
         else:
             if 'quant' not in m:
                 raise ValueError('Salmon 导入需要 quant 列（quant.sf 路径）')
             m['quant'] = [str(local_file(f)) for f in m['quant']]
+            if m['quant'].duplicated().any():
+                raise ValueError('同一个 quant.sf 被重复当作多个样本，请核对生物学重复')
+            reference_names=None
+            mapping_ids=set(mapping.iloc[:,0].str.replace(r'\|.*$','',regex=True).str.replace(r'\..*$','',regex=True))
             for file in m['quant']:
-                q = read_table(file)
+                q = read_table(file,dtype={'Name':str})
                 if not {'Name', 'Length', 'EffectiveLength', 'TPM', 'NumReads'}.issubset(q.columns):
                     raise ValueError('quant.sf 缺少 Salmon 标准字段')
-                if q.Name.duplicated().any() or not np.isfinite(q.NumReads).all() or (q.NumReads < 0).any():
+                numeric=q[['Length','EffectiveLength','TPM','NumReads']].apply(pd.to_numeric,errors='coerce')
+                if q.Name.isna().any() or q.Name.duplicated().any() or not np.isfinite(numeric.to_numpy()).all() or (numeric[['TPM','NumReads']]<0).any().any() or (numeric[['Length','EffectiveLength']]<=0).any().any() or numeric.NumReads.sum()==0:
                     raise ValueError('Salmon 定量无效')
+                if reference_names is not None and q.Name.tolist()!=reference_names:
+                    raise ValueError('各 quant.sf 的转录本列表或顺序不同，请使用同一参考索引的完整量化文件')
+                reference_names=q.Name.tolist()
+                normalized=q.Name.str.replace(r'\|.*$','',regex=True).str.replace(r'\..*$','',regex=True)
+                if normalized.duplicated().any() or not (set(normalized)&mapping_ids):
+                    raise ValueError('Salmon 转录本与 tx2gene 无法唯一匹配，请核对版本与管道符前的 ID')
     if cfg.get('annotation'):
         ann = read_table(local_file(cfg['annotation']), dtype=str).fillna('')
         if not {'gene', 'symbol', 'entrez', 'go', 'ontology'}.issubset(ann.columns):
@@ -168,6 +188,10 @@ def validate(cfg):
         known = ann[ann.go != '']
         if not known.go.str.fullmatch(r'GO:\d{7}').all():
             raise ValueError('GO编号须为 GO:七位数字')
+        if not known.ontology.isin(['BP','CC','MF']).all() or (ann.gene=='').any():
+            raise ValueError('注释基因不能为空，每个 GO 必须标明 BP/CC/MF')
+        if (known.groupby('go').ontology.nunique()>1).any():
+            raise ValueError('同一个 GO 编号不能同时属于不同 ontology')
     if cfg.get('gmt'):
         if cfg['gmt_id'] not in ('ENSEMBL', 'ENTREZID', 'SYMBOL'):
             raise ValueError('GMT ID 类型无效')
@@ -196,4 +220,13 @@ def validate(cfg):
     cfg.update(alpha=.05,lfc=0 if cfg['deg_profile']=='nominal' else 1,significance='pvalue' if cfg['deg_profile']=='nominal' else 'padj')
     cfg['wgcna_genes'] = bounded(cfg.get('wgcna_genes', 3000), 100, 6000, 'WGCNA基因数', int)
     cfg['wgcna_power'] = bounded(cfg.get('wgcna_power', 6), 1, 30, 'WGCNA软阈值', int)
+    cfg['wgcna_power_mode'] = cfg.get('wgcna_power_mode', 'manual')
+    if cfg['wgcna_power_mode'] not in ('auto', 'manual'):
+        raise ValueError('WGCNA 软阈值模式无效')
+    if mode == 'fastq' and cfg.get('genome'):
+        cfg['genome'] = str(local_file(cfg['genome']))
+    if mode == 'fastq':
+        paired = 'fastq2' in m
+        if (paired and cfg.get('library', 'A') in ('U', 'SF', 'SR')) or (not paired and cfg.get('library', 'A') in ('IU', 'ISF', 'ISR')):
+            raise ValueError('文库类型与单端/双端 FASTQ 不一致，无法判断时使用自动 A')
     return cfg, m
