@@ -36,10 +36,51 @@ def bounded(value, low, high, name, cast=float):
         raise ValueError(f'{name} 超出范围 {low}–{high}')
     return value
 
+def validate_resources(cfg):
+    if cfg.get('annotation'):
+        ann = read_table(local_file(cfg['annotation']), dtype=str).fillna('')
+        if not {'gene', 'symbol', 'entrez', 'go', 'ontology'}.issubset(ann.columns):
+            raise ValueError('注释表需要 gene symbol entrez go ontology 五列')
+        if not set(ann.ontology).issubset({'BP', 'CC', 'MF', ''}):
+            raise ValueError('GO ontology 只能为 BP/CC/MF')
+        known = ann[ann.go != '']
+        if not known.go.str.fullmatch(r'GO:\d{7}').all():
+            raise ValueError('GO编号须为 GO:七位数字')
+        if not known.ontology.isin(['BP','CC','MF']).all() or (ann.gene=='').any():
+            raise ValueError('注释基因不能为空，每个 GO 必须标明 BP/CC/MF')
+        if (known.groupby('go').ontology.nunique()>1).any():
+            raise ValueError('同一个 GO 编号不能同时属于不同 ontology')
+    if cfg.get('gmt'):
+        if cfg['gmt_id'] not in ('ENSEMBL', 'ENTREZID', 'SYMBOL'):
+            raise ValueError('GMT ID 类型无效')
+        terms = set()
+        for line in local_file(cfg['gmt']).read_text().splitlines():
+            parts = line.split('\t')
+            if len(parts) < 3 or parts[0] in terms:
+                raise ValueError('GMT 每行至少3列，通路名不能重复')
+            terms.add(parts[0])
+        if not terms:
+            raise ValueError('GMT 文件为空')
+    if cfg.get('tf_network'):
+        net=read_table(local_file(cfg['tf_network']))
+        if not {'source','target','weight'}.issubset(net):raise ValueError('调控网络需要 source target weight 三列')
+        if net[['source','target']].isna().any().any() or net[['source','target']].duplicated().any():raise ValueError('调控网络的 source/target 缺失或重复')
+        weight=pd.to_numeric(net.weight,errors='raise')
+        if not np.isfinite(weight).all() or (weight==0).any():raise ValueError('调控网络权重必须为有限非零数')
+        if cfg.get('tf_id','SYMBOL') not in ('ENSEMBL','ENTREZID','SYMBOL'):raise ValueError('调控网络ID类型无效')
+        if cfg.get('tf_species','Mus musculus')!='Mus musculus':raise ValueError('本工作站仅接受已转换至小鼠的调控网络')
+
+
 def validate(cfg):
     if not isinstance(cfg, dict):
         raise ValueError('请求必须为 JSON 对象')
     cfg = dict(cfg)
+    stage=cfg.get('analysis_stage','full')
+    if stage in ('enrichment','expression','activity','network'):
+        from scripts.module_inputs import validate_module
+        return validate_module(cfg)
+    if stage not in ('full','differential'): raise ValueError('未知分析环节')
+    if stage=='differential' and cfg.get('mode')=='fastq': raise ValueError('单独差异分析请导入原始计数或 Salmon quant.sf')
     mode = cfg.get('mode', 'counts')
     if mode not in ('counts', 'fastq', 'salmon'):
         raise ValueError('未知输入类型')
@@ -179,38 +220,7 @@ def validate(cfg):
                 normalized=q.Name.str.replace(r'\|.*$','',regex=True).str.replace(r'\..*$','',regex=True)
                 if normalized.duplicated().any() or not (set(normalized)&mapping_ids):
                     raise ValueError('Salmon 转录本与 tx2gene 无法唯一匹配，请核对版本与管道符前的 ID')
-    if cfg.get('annotation'):
-        ann = read_table(local_file(cfg['annotation']), dtype=str).fillna('')
-        if not {'gene', 'symbol', 'entrez', 'go', 'ontology'}.issubset(ann.columns):
-            raise ValueError('注释表需要 gene symbol entrez go ontology 五列')
-        if not set(ann.ontology).issubset({'BP', 'CC', 'MF', ''}):
-            raise ValueError('GO ontology 只能为 BP/CC/MF')
-        known = ann[ann.go != '']
-        if not known.go.str.fullmatch(r'GO:\d{7}').all():
-            raise ValueError('GO编号须为 GO:七位数字')
-        if not known.ontology.isin(['BP','CC','MF']).all() or (ann.gene=='').any():
-            raise ValueError('注释基因不能为空，每个 GO 必须标明 BP/CC/MF')
-        if (known.groupby('go').ontology.nunique()>1).any():
-            raise ValueError('同一个 GO 编号不能同时属于不同 ontology')
-    if cfg.get('gmt'):
-        if cfg['gmt_id'] not in ('ENSEMBL', 'ENTREZID', 'SYMBOL'):
-            raise ValueError('GMT ID 类型无效')
-        terms = set()
-        for line in local_file(cfg['gmt']).read_text().splitlines():
-            parts = line.split('\t')
-            if len(parts) < 3 or parts[0] in terms:
-                raise ValueError('GMT 每行至少3列，通路名不能重复')
-            terms.add(parts[0])
-        if not terms:
-            raise ValueError('GMT 文件为空')
-    if cfg.get('tf_network'):
-        net=read_table(local_file(cfg['tf_network']))
-        if not {'source','target','weight'}.issubset(net):raise ValueError('调控网络需要 source target weight 三列')
-        if net[['source','target']].isna().any().any() or net[['source','target']].duplicated().any():raise ValueError('调控网络的 source/target 缺失或重复')
-        weight=pd.to_numeric(net.weight,errors='raise')
-        if not np.isfinite(weight).all() or (weight==0).any():raise ValueError('调控网络权重必须为有限非零数')
-        if cfg.get('tf_id','SYMBOL') not in ('ENSEMBL','ENTREZID','SYMBOL'):raise ValueError('调控网络ID类型无效')
-        if cfg.get('tf_species','Mus musculus')!='Mus musculus':raise ValueError('本工作站仅接受已转换至小鼠的调控网络')
+    validate_resources(cfg)
     cfg['tf_id']=cfg.get('tf_id','SYMBOL')
     for key in ('tf_network','counts', 'transcripts', 'tx2gene', 'gmt', 'annotation', 'samples'):
         if cfg.get(key):

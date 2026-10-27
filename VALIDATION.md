@@ -148,3 +148,15 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - `windows.deploy.prepare` 实际分阶段复制检查：新 `dataio.py` / `discovery.py`、decoy helper、方法审查、Word和图形资产均包含在不可变程序目录中。无本地Windows远程操作；未宣称用户D盘已更新。
 - `build_user_guide.py --check` 通过：Markdown、HTML、Word与运行代码指纹一致，版本 **2026.10.27-r3**。Word保留四幅入门原理图并新增本次高级操作说明。未使用Microsoft Word GUI进行人工分页渲染。
 - 限制：未用客户数据验证，未在32GB机器建立完整小鼠基因组decoy索引，未声称完成独立队列/因果验证、BAM剪接/变异或细胞组成去卷积。旧任务的原统计不自动重算；新GO背景、调整后关联、模块功能与decoy设置需相应的新任务或明确计算。
+
+## 2026-10-27：空白新任务、恢复与单步分析（教程 r4）
+
+- 新开、刷新、浏览器前进/后退恢复和“新建分析”均重置表单、路径、参数、比较行、样本预览、搜索与检查提示；仅删除本站旧输入/选择缓存，保留无关浏览器设置。延迟元数据、预检和任务提交响应不会恢复已清空的表单，后台任务与历史目录保留。
+- 新增“原参数重试”“调整参数后续跑”及独立差异、富集/GSEA、表达诊断、活性、网络入口。历史任务主动“载入上游结果”，记录来源；Salmon转差异保留quant.sf/tx2gene长度信息，不使用四舍五入的计数替代。富集载入当前比较实际选中的DEG方案。
+- `python -m pytest -q`：**56 passed**。新增独立输入验证、缺少stat/padj、真实缓存复制与源数据保留、质控/文库/参考变化的依赖失效，以及显式任务恢复/来源/DEG方案继承等检查。
+- 本地合成真实R运行：独立富集（无样本矩阵）、表达诊断、ssGSEA/ULM活性、WGCNA、Salmon/tximport独立DESeq2，以及完整流程调整过滤阈值后的续跑均完成。后续检查又运行只含P/LFC的ORA和声明log2(TPM+1)的外部矩阵；未运行模块不生成伪造结果，单位显示正确。修正活性任务不应注册DEG统计图的问题后重新运行活性任务，无绘图警告。
+- 实际续跑记录显示复用6个fastp样本、索引和6个Salmon样本，执行日志只有R/报告汇总，没有重跑fastp或Salmon。独立DESeq2结果有dds.rds/VST和两套DEG，未输出GO/GSEA/活性/网络。无stat的独立ORA不输出GSEA；缺padj时BH与独立Python数值一致。
+- Plotly与严格JSON逐图验证覆盖上述完成任务；导入统计不要求虚构样本矩阵，基因详情仍可读统计。转换表达未伪装成normalized counts，未运行基因差异时不显示虚构P值。大文件签名仍为路径/大小/修改时间，未宣称完整内容哈希或跨工具版本自动等价。
+- Chromium：`tests/browser_inputs.py` 通过旧缓存清理、刷新/新建/BFCache、延迟响应与提交不回填、主动载入失败参数、单步输入/来源及手机宽度；`tests/browser_module_results.py` 通过默认结果页面、实际表达单位、无虚假FASTQ质控及缺矩阵/GSEA的界面；既有`browser_results.py`和空项目`browser_manual.py`通过标注、双方案/GSEA、ZIP及说明/Word下载。调整浏览器检查等待实际图表刷新完成，避免只看到方案标签更新就断言坐标已更新。
+- `windows.deploy.prepare` 验证新scripts/helpers、R入口与Word被包含在D盘不可变部署目录。说明Markdown/HTML/Word/清单同步为 **2026.10.27-r4**，新增第28章的完整操作与输入表。未远程操作用户Windows；部署更新仍需本机运行更新脚本。
+- 测试使用隔离的人工数据和模拟失败状态，不接触客户报告/真实测序。未重新下载官方测试数据；未验证完整小鼠参考在用户32GB设备上的资源峰值。

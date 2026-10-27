@@ -3,7 +3,7 @@
 :root{--ink:#183531;--green:#126657;--paper:#f4f7f5;--line:#d4e0d9;--muted:#557269}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.9 system-ui,"Microsoft Yahei",sans-serif}a{color:var(--green);overflow-wrap:anywhere}header{background:#183c34;color:white;padding:38px max(24px,calc((100vw - 1250px)/2));}header small{color:#c2dfd0;letter-spacing:.1em}h1{font-size:30px;line-height:1.5;margin:10px 0}header p{color:#d4e8df}header a{color:white;display:inline-block;border:1px solid #a9cabd;padding:6px 15px;border-radius:6px;text-decoration:none}.layout{display:grid;grid-template-columns:265px minmax(0,1fr);gap:30px;max-width:1300px;padding:28px 24px;margin:auto}aside{position:sticky;top:20px;align-self:start;max-height:94vh;overflow:auto;font-size:13px}aside ul{list-style:none;padding-left:14px}aside>nav>.toc>ul{padding-left:0}aside a{text-decoration:none;display:block;margin:5px 0}input{width:100%;border:1px solid #b9cbc0;border-radius:6px;font:inherit;padding:10px;background:white}#search-status{font-size:12px;color:var(--muted)}#search-results a{font-size:13px;margin:8px 0}article figure{margin:20px 0}article img{display:block;max-width:100%;height:auto;margin:auto;border:1px solid var(--line);border-radius:8px}figcaption{font-size:12px;color:var(--muted);margin:8px 0}section{background:white;border:1px solid var(--line);border-radius:12px;padding:24px 30px;margin-bottom:22px;min-width:0}h2{font-size:23px;margin-top:4px;line-height:1.6}h3{font-size:18px;margin-top:28px}h4{font-size:16px}p,li{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:9px;min-width:100px}th{background:#edf4ef}tr:nth-child(even){background:#fafcfb}.table-scroll{overflow-x:auto;margin:18px 0}pre{background:#102a23;color:#d1e9dd;padding:16px;border-radius:8px;overflow-x:auto;font:12px/1.7 Consolas,monospace}code{background:#edf4ef;border-radius:3px;padding:1px 4px;font: .9em Consolas,monospace}pre code{background:transparent;padding:0;color:inherit}blockquote{margin:18px 0;border-left:4px solid #64a28b;background:#edf5ef;padding:8px 18px;color:#365c4e}.stamp{font-size:12px;color:var(--muted);padding:0 4px;overflow-wrap:anywhere}button{font:inherit;background:var(--green);color:white;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}#search-results:empty{display:none}[hidden]{display:none!important}@media(max-width:850px){header{padding:24px}h1{font-size:25px}.layout{display:block;padding:16px}aside{position:static;max-height:none;margin-bottom:20px}aside nav{max-height:220px;overflow:auto;border-bottom:1px solid var(--line)}section{padding:20px 16px}h2{font-size:20px}}@media print{body{background:white;font-size:10pt}.layout{display:block;padding:0}aside,header a,button{display:none}header{background:white;color:#183531;padding:0}header p,header small{color:#183531}section{border:0;padding:0;break-inside:auto}h2,h3,h4{break-after:avoid}table{font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f5;color:#183531}.table-scroll{overflow:visible}}
 </style></head>
-<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>小鼠 bulk RNA-seq 从零入门与工作站实操教程</h1><p>基础知识 · 图解与算例 · 分析原理 · 实操与参考</p><p>说明书 2026.10.27-r3 · 适用程序 v2.0 · 更新 2026-10-27</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
+<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>小鼠 bulk RNA-seq 从零入门与工作站实操教程</h1><p>基础知识 · 图解与算例 · 分析原理 · 实操与参考</p><p>说明书 2026.10.27-r4 · 适用程序 v2.0 · 更新 2026-10-27</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
 <div class="layout"><aside><label for="guide-search">搜索说明书</label><input id="guide-search" type="search" placeholder="例如：火山图、KEGG、样本表"><p id="search-status" role="status">输入关键词可定位到相关章节</p><div id="search-results"></div><nav aria-label="说明书目录"><div class="toc">
 <ul>
 <li><a href="#section-5ba67c792ff0">导读：先学知识，再按工作站步骤操作</a></li>
@@ -174,9 +174,16 @@
 <li><a href="#section-a0d1d53b625d">27.5 更新与推荐阅读</a></li>
 </ul>
 </li>
+<li><a href="#section-427b9cc3e1ce">28. 空白新任务、失败恢复与单步分析</a><ul>
+<li><a href="#section-517e1ffb123e">28.1 根据已有材料选择起点</a></li>
+<li><a href="#section-f6a44e63b1b8">28.2 完整差异结果的格式与背景</a></li>
+<li><a href="#section-1d04deafdaa1">28.3 自动把上游结果交给下一步</a></li>
+<li><a href="#section-18fc1f8f23af">28.4 失败后选择合适的恢复方式</a></li>
+</ul>
+</li>
 </ul>
 </div>
-</nav><p class="stamp">程序内容指纹<br>sha256:5bcab7cd45d65b69d1edee1b34923e3fc75edc237ff61a370f89a35d237fcdc8</p></aside><article><section><p>说明书版本：2026.10.27-r3</p>
+</nav><p class="stamp">程序内容指纹<br>sha256:fdff95d07b264541d5d6d5e995df2bb94e5d8891226f9832d169434c4f4b623c</p></aside><article><section><p>说明书版本：2026.10.27-r4</p>
 <p>适用程序：小鼠 bulk RNA-seq 工作站 2.0，Windows + WSL2 Ubuntu 24.04 或原生 Ubuntu。本文对应当前仓库实际实现；每个任务的真实设计、软件版本与完成状态，以该任务保存的参数、R-session、日志和报告为准。说明书编写日期：2026-10-27。</p>
 <p>本版按新手学习顺序重写：先理解RNA、建库测序、计数和统计，再使用软件。重要术语在首次出现时解释，配有原理图、计算例子、结果判读和自测答案；操作部分继续对应实际程序。示例样本名、数值、基因和路径仅用于教学，不代表实验发现。工作站不会把演示注释或合成数据当作真实小鼠生物学证据。</p>
 </section><section><h2 id="section-5ba67c792ff0">导读：先学知识，再按工作站步骤操作</h2>
@@ -1437,8 +1444,9 @@ ENSMUSG00000000001  Example1    12345   GO:0005575  CC
 <p><code>input-provenance.json</code> 不是所有大型输入的完整内容 SHA256 清单；续跑的输入标记主要依赖路径、文件大小和修改时间。正式发表或长期归档时，应另行保存完整原始数据校验值、参考/GMT来源及版本、镜像标识与样本采集记录。</p>
 <p>结果 ZIP 当前排除 <code>qc/</code>、<code>quant/</code>、<code>index/</code> 目录，也不包含外部原始 FASTQ。因此 ZIP 并不是整个实验的全部数据备份；fastp 独立报告、清洁 reads、完整 Salmon 目录和索引如需留存，要单独备份。报告内嵌导出图，可以离线阅读，但不会自动包含尚未执行模块的结果。</p>
 </section><section><h2 id="section-c1ba65e51848">20. 重试、取消、更新与数据保留</h2>
+<p>每次重新打开、刷新页面（包括浏览器前进/后退恢复）或点击“新建分析”，输入表单都会恢复默认：清空样本/计数/参考/注释/GMT/调控网络路径、表型和协变量，重置比较组合、样本选择、分组颜色及参数，并清除旧预览和检查提示。不再从浏览器自动带入上次输入，未提交的填写内容也不会保留。已提交的任务、输入记录和分析结果仍保存在工作站，后台任务继续运行，可从右上角项目列表重新选择查看。</p>
 <p>任务失败时先看“报告与导出”的执行日志，找到第一个实际失败的工具及其错误，而不是只看最后一行的通用退出码。确认输入路径、参考和网络后，可对失败或取消任务点击“重试”。已完成且输入文件路径/大小/修改时间标记一致的 fastp、Salmon 索引和定量可复用；统计和图表会按任务配置继续执行。</p>
-<p>重试用于恢复原任务，不是随意更改模型后沿用旧结果。需要改变样本设计、过滤、参考、收缩、基因集或 WGCNA 参数时，建议创建新分析，以保留可比较的参数与结果。切换已有两套 DEG 方案不需要重新拟合模型。</p>
+<p>“原参数重试”恢复原任务。需要改变样本设计、过滤、参考、收缩、基因集或WGCNA参数时，可选择“调整参数后续跑”另存并复用合格上游缓存，或从相应单步入口直接开始；操作见第28章。切换已有两套 DEG 方案不需要重新拟合模型。</p>
 <p>点击“取消任务”会停止对应计算进程和本工作站对应的分析容器，保存已有文件。服务重启后未完成任务会标记失败，便于显式重试，不会宣称中断任务已经完成。删除或移动正在使用的输入、结果或程序目录会破坏任务和可追溯性。</p>
 <p>更新前完成或正常取消任务，再使用 D 盘 <code>更新工作站.bat</code>。更新采用独立版本目录准备，成功后切换配置，保留旧版本和结果；活动任务或用户修改过的关键入口可能阻止更新，需按提示处理。源码模式可在确认本地修改和数据已保留后，使用仓库支持的快进更新和安装步骤。下载 Word 使用说明不会自动更新已经部署的程序。</p>
 </section><section><h2 id="section-a9dd0cb4cdd6">21. 常见问题与处理顺序</h2>
@@ -2214,7 +2222,99 @@ ENSMUSG00000000001  Example1    12345   GO:0005575  CC
 <h3 id="section-a0d1d53b625d">27.5 更新与推荐阅读</h3>
 <p>GitHub改动不会直接更新你D盘的安装。完成或取消正在运行的任务后，双击 <code>D:\转录组分析工作站\更新工作站.bat</code>，再启动工作站。在最后一项“使用说明与方法参考”核对版本2026.10.27-r3，可下载同步Word。旧任务可采用新绘图控件；新GO背景、基因–表型调整和full-decoy必须新建相应分析，不能仅通过重新画图获得。</p>
 <p>本轮也补充模块功能解释：在网络页选择“模块功能富集”，指定module、GO/GMT数据库和显示方式；跨模块×术语进行BH。不要把“模块富集”“DEG富集”和“GSEA”混作同一检验，它们的选集与背景不同。</p>
-<p>本轮逐项参考DESeq2官方vignette、tximport、nf-core/rnaseq usage、fgseaMultilevel、WGCNA、decoupleR ULM源代码，并借鉴enrichplot、EnhancedVolcano和ComplexHeatmap的图形组织。方法论文与链接见第24章；这些是方法/界面参考，工作站并未自动调用全部参考项目。另可直接查看 <a href="https://github.com/thelovelab/DESeq2/blob/devel/vignettes/DESeq2.Rmd">DESeq2官方教程源码</a>、<a href="https://github.com/nf-core/rnaseq/blob/master/docs/usage.md">nf-core索引建议</a>、<a href="https://github.com/kevinblighe/EnhancedVolcano">EnhancedVolcano</a>、<a href="https://github.com/jokergoo/ComplexHeatmap">ComplexHeatmap</a>。</p></section><p class="stamp">网页、Word 与文稿同步生成；内容指纹 60f6c97bea77faaa274532d45993eb180ed6c4c2c0847fa15dbd8e30757c563d</p></article></div><script>
+<p>本轮逐项参考DESeq2官方vignette、tximport、nf-core/rnaseq usage、fgseaMultilevel、WGCNA、decoupleR ULM源代码，并借鉴enrichplot、EnhancedVolcano和ComplexHeatmap的图形组织。方法论文与链接见第24章；这些是方法/界面参考，工作站并未自动调用全部参考项目。另可直接查看 <a href="https://github.com/thelovelab/DESeq2/blob/devel/vignettes/DESeq2.Rmd">DESeq2官方教程源码</a>、<a href="https://github.com/nf-core/rnaseq/blob/master/docs/usage.md">nf-core索引建议</a>、<a href="https://github.com/kevinblighe/EnhancedVolcano">EnhancedVolcano</a>、<a href="https://github.com/jokergoo/ComplexHeatmap">ComplexHeatmap</a>。</p>
+</section><section><h2 id="section-427b9cc3e1ce">28. 空白新任务、失败恢复与单步分析</h2>
+<p>本章为2026.10.27-r4新增。新任务输入与已有任务结果分别管理：打开、刷新、前进/后退恢复页面或点击“新建分析”，都会清空未提交填写和旧样本预览；后台已提交的任务继续运行，历史结果保存在项目目录。需要查看进度或恢复时，从右上角重新选择项目。只有主动点击恢复/载入按钮，才将选定项目的参数或结果填入新表单。</p>
+<h3 id="section-517e1ffb123e">28.1 根据已有材料选择起点</h3>
+<p>在“样本与实验设计”的“选择分析入口”选择环节。完整分析自动连接已有的 fastp、Salmon、tximport、DESeq2 和下游模块。单步入口使用其实际需要的输入，不需要先上传FASTQ。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>入口</th>
+<th>需要输入</th>
+<th>实际执行与限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>完整分析</td>
+<td>样本表，以及FASTQ+参考 / Salmon+tx2gene / 原始计数三选一</td>
+<td>自动执行从所选起点开始的完整流程，结果自动传入后续计算</td>
+</tr>
+<tr>
+<td>单独差异分析</td>
+<td>样本表 + 原始整数计数，或样本表quant列 + quant.sf + tx2gene</td>
+<td>仅运行DESeq2和表达诊断；Salmon模式保留tximport长度信息。下游富集/活性/网络可再独立启动，无需重新处理FASTQ</td>
+</tr>
+<tr>
+<td>单独GO/KEGG/GSEA</td>
+<td>完整差异表，真实注释/GMT；可额外提供表达矩阵和样本表</td>
+<td>从输入统计重新筛两套DEG并计算ORA；有完整stat时运行GSEA。没有表达矩阵时只查看统计/富集，不伪造样本表达</td>
+</tr>
+<tr>
+<td>单独表达诊断与绘图</td>
+<td>已转换表达矩阵 + sample/group样本表</td>
+<td>PCA、分布、相关、距离和基因表达；不拟合DESeq2，不推算reads质控</td>
+</tr>
+<tr>
+<td>单独通路/调控活性</td>
+<td>已转换表达矩阵 + 样本表 + 匹配的GMT或小鼠调控网络</td>
+<td>ssGSEA/ULM；存在有效组间比较时使用相同协变量的limma。单组可计算样本分数，不生成虚假的组间差异</td>
+</tr>
+<tr>
+<td>单独WGCNA</td>
+<td>已转换表达矩阵 + 样本表；可加表型/注释/GMT</td>
+<td>网络至少15独立样本，推荐20+；模块、hub、模块功能富集与关联。小样本明确跳过网络</td>
+</tr>
+</tbody>
+</table></div>
+<p>矩阵单步入口至少需要4个样本、10个有变异的基因，列名匹配sample。可声明VST、log2(normalized count+1)或log2(TPM+1)，程序按声明单位使用已转换值，不再重复做log或VST。原始TPM和原始计数不应冒充VST。常用起点是工作站保存的 <code>vst.csv</code>；其他单位会在坐标和方法中明确说明。为兼容绘图接口，任务目录内的通用转换矩阵仍命名为vst.csv，解释数值时必须以本次参数中的expression_unit为准。</p>
+<h3 id="section-f6a44e63b1b8">28.2 完整差异结果的格式与背景</h3>
+<p>富集入口识别 <code>gene,log2FoldChange,pvalue</code> 三个必要字段；建议同时提供 <code>padj,stat,baseMean,symbol</code>。一个输入文件对应一个比较，界面须声明与该表一致的处理/对照方向。数值可以有合理的NA；P/padj须在0–1之间；gene不可重复。</p>
+<p>必须包含本次测试的未显著基因。只导入公司给出的DEG名单会丢失背景、破坏ORA与GSEA问题定义；应索取完整差异结果。缺少padj时，程序对所有提供的有效pvalue统一做BH并记录来源，因此更不能只上传截断名单；已有padj会原样使用，不重复校正。两种方案仍为pvalue&lt;0.05且|LFC|&gt;0，以及padj&lt;0.05且|LFC|&gt;1。</p>
+<p>GSEA需要完整的、带方向的stat排序。缺少足够stat时明确跳过GSEA，继续ORA；不把DEG列表或−log10(P)伪装成Wald排序。外部导入的stat在曲线标为Imported stat，其统计意义由原分析方法决定。没有baseMean时，无法绘制真实MA图；重复注释ID的代表行按稳定基因顺序选择，不按最显著P挑选。</p>
+<p>ORA在有stat时使用有限stat的可映射测试基因；缺stat时使用有限pvalue的可映射测试基因。GO背景仍按BP/CC/MF分别限定，GMT按本数据库覆盖限定。完整背景和注释版本仍然决定结果是否有意义。</p>
+<p>如同时提供对应样本表和转换表达矩阵，可画差异热图、leading-edge热图及样本表达；不提供时，火山图的点仍能显示导入统计，表达区会明确提示缺少矩阵。无需为了解锁页面而提供虚构表达。</p>
+<h3 id="section-1d04deafdaa1">28.3 自动把上游结果交给下一步</h3>
+<ol>
+<li>从右上角选择已有项目；有多个比较时先确认当前比较。</li>
+<li>在“从当前结果继续分析”选择后续环节，点击“载入上游结果”。</li>
+<li>工作站准备该环节的真实输入路径与匹配样本、注释和基因集；在新表单核对，再修改所需参数。</li>
+<li>点击“检查样本与参数”，然后“启动分析”。新任务保留upstream_from来源，原项目继续保留。</li>
+</ol>
+<p>例如完整项目完成后，只想更换GMT做GSEA：选择项目和比较 → 选择GO/KEGG/GSEA → 载入上游结果 → 更换GMT → 启动。无需再跑FASTQ、Salmon或DESeq2。</p>
+<p>如果需要更换DESeq2协变量：选择“单独差异分析”。原项目来自Salmon时，自动准备保留各样本quant.sf的样本表和tx2gene，而不是把四舍五入的基因计数当作普通counts丢弃长度信息。原项目来自原始计数时使用其计数快照。VST/TPM任务不能反推DESeq2原始计数，需回到有实际计数/定量的项目或手动导入。</p>
+<p>工作站只在有相应真实文件时提供可用输入。失败任务中已经保存的完整上游结果也可作为来源；如果缺少文件，页面会指出所缺材料。刷新页面会清空这次尚未提交的载入，之后可再次主动选择同一来源。</p>
+<h3 id="section-18fc1f8f23af">28.4 失败后选择合适的恢复方式</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>推荐操作</th>
+<th>继续的范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>临时断网、Docker未启动或软件运行失败，参数保持原样</td>
+<td>选择失败/取消项目 → 原参数重试</td>
+<td>使用该任务原配置，核对完成标记和文件后继续；受参考/输入变化影响的步骤会重算</td>
+</tr>
+<tr>
+<td>质控/定量已完成，只修改下游模型或数据库</td>
+<td>选择来源项目 → 载入相应单步入口</td>
+<td>直接使用所需上游结果，节省复制大型reads缓存的空间</td>
+</tr>
+<tr>
+<td>中途失败，需要修改处理参数后继续完整流程</td>
+<td>选择失败/取消项目 → 调整参数后续跑 → 修改 → 启动</td>
+<td>另存新任务；复制输入与处理参数一致的已完成缓存，重新执行受影响步骤及统计</td>
+</tr>
+</tbody>
+</table></div>
+<p>“调整参数后续跑”会显式恢复原任务参数、比较组合、样本排除和配色。它是主动恢复入口，日常打开或新建仍为空表单。默认勾选“复用输入与参数一致的已完成步骤”，也可关闭，以完全重新运行。</p>
+<p>复用规则示例：只改低表达过滤、协变量、LFC收缩或GMT时，可复用已完成fastp和Salmon；改fastp质量/长度阈值时，相关质控和定量重算；改参考、文库方向或单端片段分布时，相应索引/定量重算。只有完整成功标记且必要文件仍在的样本会被复用，未完成样本继续计算。统计、富集、挖掘和报告按新参数重算，不复用旧设计的DESeq2拟合。</p>
+<p>缓存以独立副本复制到新任务，后续计算不写回原任务。复制会额外占用磁盘，空间不足时可选择单步入口或关闭复用；原项目保留用于比较。<code>resume-provenance.json</code>记录来源、改变的参数、复用样本/索引与复制字节数。检查主要依据输入路径、大小、修改时间和参数，不是所有大文件的内容哈希；重大工具版本变更、怀疑缓存损坏时应关闭复用，并保留真实输入和版本记录。</p></section><p class="stamp">网页、Word 与文稿同步生成；内容指纹 bfdef47a62650043eaea0fa538e2724158b7bdbc0f2670b12768081919f8cbfc</p></article></div><script>
 const input=document.getElementById('guide-search'),result=document.getElementById('search-results'),status=document.getElementById('search-status');
 const chapters=[...document.querySelectorAll('article section')].map(s=>({heading:s.querySelector('h2'),text:s.textContent.toLocaleLowerCase()})).filter(s=>s.heading);
 input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase();result.replaceChildren();if(!q){status.textContent='输入关键词可定位到相关章节';return;}const found=chapters.filter(s=>s.text.includes(q));status.textContent=`找到 ${found.length} 个相关章节`;for(const s of found){const a=document.createElement('a');a.textContent=s.heading.textContent;a.href='#'+s.heading.id;result.append(a);}});

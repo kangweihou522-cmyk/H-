@@ -68,7 +68,7 @@ def adjusted_traits(p):
     result['padj'] = bh(result.pvalue)
     result.to_csv(p/'gene-trait-adjusted.csv', index=False)
     info.update(state='completed', reason='', tests=int(result.pvalue.notna().sum()),
-                method='Partial Pearson on VST; residualize gene and trait against the full DESeq2 design (including group); t test; BH across all finite gene × selected-trait tests',
+                method='Partial Pearson on declared transformed expression; residualize gene and trait against the full DESeq2 design (including group); t test; BH across all finite gene × selected-trait tests',
                 caution='独立样本线性模型探索；检查线性关系、离群点和残差，不能据此推断因果')
     return info
 
@@ -114,4 +114,5 @@ def run_discovery(p):
     status = json.loads(status_file.read_text()) if status_file.exists() else {}
     status['gene_trait'] = info
     status['candidate_evidence'] = dict(state='completed', method='DESeq2 + significant GSEA leading-edge membership + optional WGCNA kME and adjusted trait association; evidence columns, no composite validation score')
+    if not (p/'contrasts').is_dir() or not any((p/'contrasts').glob('*/differential.csv')):status['candidate_evidence']=dict(state='skipped',reason='此单步任务未拟合/导入差异基因结果')
     status_file.write_text(json.dumps(status, ensure_ascii=False, indent=2))

@@ -32,6 +32,7 @@ with sync_playwright() as p:
  page.locator('#profilecomparison .profile-choice').filter(has_text='方案一').get_by_role('button').click();page.wait_for_function("document.querySelector('#profilecomparison .profile-choice.selected').textContent.includes('方案一')",timeout=30000)
  after=json.load(urllib.request.urlopen(base+'/api/jobs/'+j+'/curve?contrast=comparison&database=pathway&term=synthetic_up'));assert before['running']==after['running']
  manifest=json.load(urllib.request.urlopen(base+'/api/jobs/'+j+'/manifest'));c=manifest['contrasts']['comparison'];assert c['active_profile']=='nominal' and c['profiles']['nominal']['total']>=c['profiles']['strict']['total']
+ page.wait_for_function("document.getElementById('plot').layout.yaxis.title.text.includes('unadjusted')",timeout=30000)
  assert page.evaluate("document.getElementById('plot').layout.yaxis.title.text.includes('unadjusted')")
  page.screenshot(path=str(args.output/'volcano.png'),full_page=True)
  page.locator('[data-view="enrichment"]').click();page.locator('#tablekind').select_option('pathway_gsea');page.wait_for_selector('#resulttable tbody tr td button');page.locator('#resulttable tbody tr td button').first.click();page.wait_for_function("document.querySelector('#chartselect').value.startsWith('gsea_curve')")

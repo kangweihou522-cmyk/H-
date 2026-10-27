@@ -37,7 +37,7 @@ disp<-data.frame(gene=rownames(dds),baseMean=rowMeans(norm),dispersion=dispersio
 annotation<-load_annotation(rownames(dds),root,cfg)
 if(!is.null(annotation$warning))writeLines(annotation$warning,file.path(root,'annotation-warning.txt'))
 write_json(list(go=annotation$go,pathway=annotation$gmt,go_desc=as.list(annotation$go_desc),pathway_desc=as.list(annotation$gmt_desc)),file.path(root,'gene-sets.json'),auto_unbox=TRUE)
-summary<-list()
+summary<-list();single_de<-identical(cfg$analysis_stage,'differential')
 for(cmp in cfg$comparisons){
  directory<-file.path(root,'contrasts',cmp$name);dir.create(directory,recursive=TRUE,showWarnings=FALSE)
  result<-results(dds,contrast=c('group',cmp$treatment,cmp$control),alpha=cfg$alpha)
@@ -59,13 +59,13 @@ for(cmp in cfg$comparisons){
   pp<-file.path(directory,'profiles',profile);dir.create(pp,recursive=TRUE,showWarnings=FALSE)
   write.csv(rp,file.path(pp,'differential.csv'),row.names=FALSE)
   for(direction in c('all','up','down'))write.csv(rp[rp$significant & (direction=='all' | rp$direction==direction),],file.path(pp,paste0('deg-',direction,'.csv')),row.names=FALSE)
-  run_enrichment(rp,annotation,pp,cfg,run_gsea=profile=='strict')
+  if(!single_de)run_enrichment(rp,annotation,pp,cfg,run_gsea=profile=='strict')
   profile_counts[[profile]]<-list(profile=profile,column=spec$column,alpha=spec$alpha,lfc=spec$lfc,operator='strict < / >',total=sum(rp$significant),up=sum(rp$direction=='up'),down=sum(rp$direction=='down'))
  }
  active<-cfg$deg_profile
  pp<-file.path(directory,'profiles',active)
- for(file in c('differential.csv','deg-all.csv','deg-up.csv','deg-down.csv','go.csv','pathway.csv'))file.copy(file.path(pp,file),file.path(directory,file),overwrite=TRUE)
- for(file in c('gsea.csv','gsea-ranks.csv','pathway_gsea.csv','pathway_gsea-ranks.csv'))file.copy(file.path(directory,'profiles','strict',file),file.path(directory,file),overwrite=TRUE)
+ for(file in c('differential.csv','deg-all.csv','deg-up.csv','deg-down.csv','go.csv','pathway.csv'))if(file.exists(file.path(pp,file)))file.copy(file.path(pp,file),file.path(directory,file),overwrite=TRUE)
+ for(file in c('gsea.csv','gsea-ranks.csv','pathway_gsea.csv','pathway_gsea-ranks.csv'))if(file.exists(file.path(directory,'profiles','strict',file)))file.copy(file.path(directory,'profiles','strict',file),file.path(directory,file),overwrite=TRUE)
  chosen<-profile_counts[[active]]
  write_json(chosen,file.path(directory,'active-profile.json'),auto_unbox=TRUE,pretty=TRUE)
  r<-read.csv(file.path(directory,'differential.csv'),check.names=FALSE)
@@ -75,6 +75,8 @@ for(cmp in cfg$comparisons){
 # Preserve first-contrast paths for existing projects and scripts.
 first<-file.path(root,'contrasts',cfg$comparisons[[1]]$name)
 for(f in list.files(first,full.names=TRUE)[!dir.exists(list.files(first,full.names=TRUE))])file.copy(f,file.path(root,basename(f)),overwrite=TRUE)
-run_mining(vs,norm,m,mm,annotation,root,cfg)
-write_json(list(design=paste(deparse(design),collapse=''),genes_input=before,genes_retained=nrow(dds),samples=nrow(m),pca_genes=length(pca_genes),reference=cfg$reference,contrasts=summary,annotation_warning=annotation$warning,gsea_engine=paste0('fgsea ',packageVersion('fgsea'),' multilevel; Wald stat; BH')),file.path(root,'analysis-summary.json'),auto_unbox=TRUE,pretty=TRUE)
+if(single_de){
+ write_json(list(pathway_activity=list(state='skipped',reason='Standalone differential expression'),regulatory_activity=list(state='skipped',reason='Standalone differential expression'),wgcna=list(state='skipped',reason='Standalone differential expression')),file.path(root,'mining-status.json'),auto_unbox=TRUE,pretty=TRUE)
+}else run_mining(vs,norm,m,mm,annotation,root,cfg)
+write_json(list(design=paste(deparse(design),collapse=''),genes_input=before,genes_retained=nrow(dds),samples=nrow(m),pca_genes=length(pca_genes),reference=cfg$reference,contrasts=summary,annotation_warning=annotation$warning,gsea_engine=if(single_de)'Skipped in standalone differential' else paste0('fgsea ',packageVersion('fgsea'),' multilevel; Wald stat; BH')),file.path(root,'analysis-summary.json'),auto_unbox=TRUE,pretty=TRUE)
 writeLines(capture.output(sessionInfo()),file.path(root,'R-session.txt'));saveRDS(dds,file.path(root,'dds.rds'))

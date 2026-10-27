@@ -9,10 +9,14 @@ load_annotation <- function(genes, root, cfg) {
  } else if (requireNamespace('org.Mm.eg.db', quietly=TRUE)) {
   db <- org.Mm.eg.db::org.Mm.eg.db
   k <- intersect(ids, AnnotationDbi::keys(db, keytype='ENSEMBL'))
-  if (!length(k)) stop('No Ensembl mouse IDs matched org.Mm.eg.db. Check reference / identifiers.')
-  a <- AnnotationDbi::select(db, keys=k, keytype='ENSEMBL', columns=c('SYMBOL','ENTREZID','GOALL','ONTOLOGYALL'))
-  a <- a[,c('ENSEMBL','SYMBOL','ENTREZID','GOALL','ONTOLOGYALL')]
-  names(a) <- c('id','symbol','entrez','go','ontology')
+  if (!length(k)) {
+   a <- data.frame(id=ids,symbol=NA_character_,entrez=NA_character_,go=NA_character_,ontology=NA_character_)
+   warning <- 'No mouse Ensembl IDs matched the annotation; expression/DE results retained. Check gene ID type or supply a real annotation TSV.'
+  } else {
+   a <- AnnotationDbi::select(db, keys=k, keytype='ENSEMBL', columns=c('SYMBOL','ENTREZID','GOALL','ONTOLOGYALL'))
+   a <- a[,c('ENSEMBL','SYMBOL','ENTREZID','GOALL','ONTOLOGYALL')]
+   names(a) <- c('id','symbol','entrez','go','ontology')
+  }
  } else {
   a <- data.frame(id=ids, symbol=NA_character_, entrez=NA_character_, go=NA_character_, ontology=NA_character_)
   warning <- 'GO annotation unavailable: install org.Mm.eg.db or supply a real offline annotation TSV.'
@@ -20,7 +24,7 @@ load_annotation <- function(genes, root, cfg) {
  a$id <- sub('\\..*$', '', a$id)
  a <- a[a$id %in% ids, , drop=FALSE]
  ann <- unique(a[!is.na(a$go) & nzchar(a$go), c('id','go','ontology')])
- if (!nrow(ann)) warning <- 'GO not run: zero genes with GO annotation.'
+ if (!nrow(ann) && is.null(warning)) warning <- 'GO not run: zero genes with GO annotation.'
  basic <- a[!duplicated(a$id), , drop=FALSE]
  mapped <- data.frame(gene=genes, id=ids, symbol=basic$symbol[match(ids,basic$id)], entrez=basic$entrez[match(ids,basic$id)])
  write.csv(mapped, file.path(root,'gene-annotation.csv'), row.names=FALSE)
@@ -80,18 +84,19 @@ run_enrichment <- function(r,annotation,directory,cfg,run_gsea=TRUE) {
   desc <- if(database=='go')annotation$go_desc else annotation$gmt_desc
   ont <- if(database=='go')annotation$ontology else character()
   mapped <- gene_types[[database]]
-  valid <- !is.na(mapped) & nzchar(mapped) & is.finite(r$stat)
+  has_stat <- 'stat' %in% names(r)
+  valid <- !is.na(mapped) & nzchar(mapped) & (if(has_stat)is.finite(r$stat) else is.finite(r$pvalue))
   keep <- valid;keep[valid] <- !duplicated(mapped[valid])
-  ranks <- sort(setNames(r$stat[keep],mapped[keep]),decreasing=TRUE)
-  if(database=='pathway' && length(sets) && !length(intersect(names(ranks),unique(unlist(sets)))))stop('GMT genes match zero tested genes; check gene ID type and annotation.')
+  ranks <- if(has_stat)sort(setNames(r$stat[keep],mapped[keep]),decreasing=TRUE) else numeric()
+  if(database=='pathway' && length(sets) && !length(intersect(mapped[keep],unique(unlist(sets)))))stop('GMT genes match zero tested genes; check gene ID type and annotation.')
   selection <- list(all=r$significant,up=r$significant & r$log2FoldChange>0,down=r$significant & r$log2FoldChange<0)
   all <- lapply(names(selection),function(direction){
-   x<-ora(sets,desc,names(ranks),mapped[keep & selection[[direction]]],ont,cfg)
+   x<-ora(sets,desc,mapped[keep],mapped[keep & selection[[direction]]],ont,cfg)
    if(nrow(x))x$direction<-direction
    x
   })
   out <- do.call(rbind,all);write.csv(out,file.path(directory,paste0(database,'.csv')),row.names=FALSE)
-  if(!run_gsea)next
+  if(!run_gsea || !has_stat)next
   gr <- gsea(sets,desc,ranks,ont,cfg)
   name <- if(database=='go')'gsea' else 'pathway_gsea'
   write.csv(gr,file.path(directory,paste0(name,'.csv')),row.names=FALSE)

@@ -112,67 +112,84 @@ def execute(p):
         cfg = json.loads((p/'config.json').read_text())
         m = pd.read_csv(p/'samples.csv', dtype=str)
         status(p, state='running')
+        if cfg.get('resume_from') and not (p/'resume-provenance.json').exists():
+            step(p,'inputs','running','检查并复制可复用的已完成步骤')
+            from scripts.resume_cache import reuse_completed
+            def check_cancel():
+                if p.name in cancelled: raise RuntimeError('任务已取消')
+            report=reuse_completed(runpath(cfg['resume_from']),p,cfg,m,check_cancel)
+            save(p/'resume-provenance.json',report)
         step(p, 'inputs', 'completed', '输入检查完成')
-        if cfg['mode'] == 'fastq':
-            if cfg['preprocess'] == 'fastp':
-                step(p, 'qc', 'running', 'fastp 接头/质量过滤')
+        if cfg.get('analysis_stage') in ('enrichment','expression','activity','network'):
+            step(p,'qc','skipped','单步分析：未运行 FASTQ 质控')
+            step(p,'quant','skipped','使用本次导入的上游结果')
+            step(p,'statistics','running','执行所选单步分析')
+            command(p,['Rscript',str(ROOT/'scripts/run_module.R'),str(p)])
+        else:
+            if cfg['mode'] == 'fastq':
+                if cfg['preprocess'] == 'fastp':
+                    step(p, 'qc', 'running', 'fastp 接头/质量过滤')
+                    for _, s in m.iterrows():
+                        q = p/'qc'/s['sample']; q.mkdir(parents=True, exist_ok=True)
+                        marker = q/'complete.json'
+                        files = [s.fastq1] + ([s.fastq2] if 'fastq2' in m else [])
+                        signature = [fingerprint(f) for f in files]
+                        required=['R1.fastq.gz','fastp.json']+(['R2.fastq.gz'] if 'fastq2' in m else [])
+                        if marker.exists() and json.loads(marker.read_text()) == signature and all((q/file).is_file() for file in required): continue
+                        (p/'quant'/s['sample']/'complete.json').unlink(missing_ok=True)
+                        args = ['fastp', '-i', s.fastq1, '-o', str(q/'R1.fastq.gz'),
+                                '-w', str(min(8,cfg['threads'])), '-q', str(cfg['quality']),
+                                '-l', str(cfg['length']), '--json', str(q/'fastp.json'), '--html', str(q/'fastp.html')]
+                        if 'fastq2' in m:
+                            args += ['-I', s.fastq2, '-O', str(q/'R2.fastq.gz'), '--detect_adapter_for_pe']
+                        command(p, args, files)
+                        save(marker, signature)
+                    fastp_summary(p,m)
+                    step(p, 'qc', 'completed', 'fastp 质量过滤完成')
+                else: step(p, 'qc', 'skipped', '输入为已处理 FASTQ，跳过 fastp')
+                step(p, 'quant', 'running', 'Salmon 建索引与定量')
+                signature = dict(transcripts=fingerprint(cfg['transcripts']),genome=fingerprint(cfg['genome']) if cfg.get('genome') else None)
+                marker = p/'index-complete.json'
+                if not marker.exists() or json.loads(marker.read_text()) != signature or not (p/'index/versionInfo.json').is_file():
+                    # Invalidate before rebuilding, including if a rebuild is interrupted.
+                    for done in (p/'quant').glob('*/complete.json'):done.unlink()
+                    transcript=cfg['transcripts'];extra=[]
+                    if cfg.get('genome'):
+                        command(p,[sys.executable,str(ROOT/'scripts/prepare_decoy.py'),transcript,cfg['genome'],str(p/'reference')],analysis_tool=False)
+                        transcript=str(p/'reference/gentrome.fa');extra=['--decoys',str(p/'reference/decoys.txt')]
+                    command(p, ['salmon','index','-t',transcript,'-i',str(p/'index'),'-p',str(cfg['threads'])]+extra, [transcript])
+                    save(marker, signature)
                 for _, s in m.iterrows():
-                    q = p/'qc'/s['sample']; q.mkdir(parents=True, exist_ok=True)
-                    marker = q/'complete.json'
+                    q = p/'quant'/s['sample']; done = q/'complete.json'
                     files = [s.fastq1] + ([s.fastq2] if 'fastq2' in m else [])
                     signature = [fingerprint(f) for f in files]
-                    if marker.exists() and json.loads(marker.read_text()) == signature: continue
-                    args = ['fastp', '-i', s.fastq1, '-o', str(q/'R1.fastq.gz'),
-                            '-w', str(min(8,cfg['threads'])), '-q', str(cfg['quality']),
-                            '-l', str(cfg['length']), '--json', str(q/'fastp.json'), '--html', str(q/'fastp.html')]
-                    if 'fastq2' in m:
-                        args += ['-I', s.fastq2, '-O', str(q/'R2.fastq.gz'), '--detect_adapter_for_pe']
-                    command(p, args, files)
-                    save(marker, signature)
-                fastp_summary(p,m)
-                step(p, 'qc', 'completed', 'fastp 质量过滤完成')
-            else: step(p, 'qc', 'skipped', '输入为已处理 FASTQ，跳过 fastp')
-            step(p, 'quant', 'running', 'Salmon 建索引与定量')
-            signature = dict(transcripts=fingerprint(cfg['transcripts']),genome=fingerprint(cfg['genome']) if cfg.get('genome') else None)
-            marker = p/'index-complete.json'
-            if not marker.exists() or json.loads(marker.read_text()) != signature:
-                transcript=cfg['transcripts'];extra=[]
-                if cfg.get('genome'):
-                    command(p,[sys.executable,str(ROOT/'scripts/prepare_decoy.py'),transcript,cfg['genome'],str(p/'reference')],analysis_tool=False)
-                    transcript=str(p/'reference/gentrome.fa');extra=['--decoys',str(p/'reference/decoys.txt')]
-                command(p, ['salmon','index','-t',transcript,'-i',str(p/'index'),'-p',str(cfg['threads'])]+extra, [transcript])
-                save(marker, signature)
-            for _, s in m.iterrows():
-                q = p/'quant'/s['sample']; done = q/'complete.json'
-                files = [s.fastq1] + ([s.fastq2] if 'fastq2' in m else [])
-                signature = [fingerprint(f) for f in files]
-                if done.exists() and json.loads(done.read_text()) == signature: continue
-                status(p, stage='Salmon 定量 '+s['sample'])
-                if cfg['preprocess'] == 'fastp':
-                    qcp = p/'qc'/s['sample']
-                    files = [str(qcp/'R1.fastq.gz')] + ([str(qcp/'R2.fastq.gz')] if 'fastq2' in m else [])
-                args = salmon_quant_args(cfg,p/'index',q,files)
-                command(p,args,files)
-                save(done, signature)
-            step(p,'quant','completed','Salmon 定量完成')
-        else:
-            step(p,'qc','skipped','导入模式：原始 reads 质控未运行')
-            step(p,'quant','completed','导入计数/定量结果')
-        if cfg['mode'] in ('fastq','salmon'):
-            qc=[]
-            for sample in m['sample']:
-                q=p/'quant'/sample; table=pd.read_csv(q/'quant.sf',sep='\t')
-                item=dict(sample=sample,estimated_reads=float(table.NumReads.sum()),transcripts=len(table))
-                info=q/'aux_info/meta_info.json'
-                if info.exists():
-                    meta=json.loads(info.read_text());item.update({k:meta.get(k) for k in ('num_processed','num_mapped','percent_mapped','salmon_version')})
-                lib=q/'lib_format_counts.json'
-                if lib.exists():
-                    info=json.loads(lib.read_text());item['expected_format']=info.get('expected_format');item['compatible_ratio']=info.get('compatible_fragment_ratio')
-                qc.append(item)
-            pd.DataFrame(qc).to_csv(p/'salmon-qc.csv',index=False)
-        step(p,'statistics','running','DESeq2 / fgsea / GSVA / WGCNA')
-        command(p,['Rscript',str(ROOT/'scripts/analyze.R'),str(p)])
+                    if done.exists() and json.loads(done.read_text()) == signature and (q/'quant.sf').is_file() and (q/'aux_info/meta_info.json').is_file(): continue
+                    status(p, stage='Salmon 定量 '+s['sample'])
+                    if cfg['preprocess'] == 'fastp':
+                        qcp = p/'qc'/s['sample']
+                        files = [str(qcp/'R1.fastq.gz')] + ([str(qcp/'R2.fastq.gz')] if 'fastq2' in m else [])
+                    args = salmon_quant_args(cfg,p/'index',q,files)
+                    command(p,args,files)
+                    save(done, signature)
+                step(p,'quant','completed','Salmon 定量完成')
+            else:
+                step(p,'qc','skipped','导入模式：原始 reads 质控未运行')
+                step(p,'quant','completed','导入计数/定量结果')
+            if cfg['mode'] in ('fastq','salmon'):
+                qc=[]
+                for sample in m['sample']:
+                    q=p/'quant'/sample; table=pd.read_csv(q/'quant.sf',sep='\t')
+                    item=dict(sample=sample,estimated_reads=float(table.NumReads.sum()),transcripts=len(table))
+                    info=q/'aux_info/meta_info.json'
+                    if info.exists():
+                        meta=json.loads(info.read_text());item.update({k:meta.get(k) for k in ('num_processed','num_mapped','percent_mapped','salmon_version')})
+                    lib=q/'lib_format_counts.json'
+                    if lib.exists():
+                        info=json.loads(lib.read_text());item['expected_format']=info.get('expected_format');item['compatible_ratio']=info.get('compatible_fragment_ratio')
+                    qc.append(item)
+                pd.DataFrame(qc).to_csv(p/'salmon-qc.csv',index=False)
+            step(p,'statistics','running','DESeq2差异分析与表达诊断' if cfg.get('analysis_stage')=='differential' else 'DESeq2 / fgsea / GSVA / WGCNA')
+            command(p,['Rscript',str(ROOT/'scripts/analyze.R'),str(p)])
         from discovery import run_discovery
         run_discovery(p)
         step(p,'statistics','completed','统计与数据挖掘完成')
@@ -268,11 +285,13 @@ def browse():
 def preflight():
     cfg,m=validate(request.get_json())
     warnings=[]
-    if min(m.groupby('group').size())<3: warnings.append('存在每组仅2个生物学重复的情况，推荐≥3。')
+    if len(m) and min(m.groupby('group').size())<3: warnings.append('存在每组仅2个生物学重复的情况，推荐≥3。')
     if cfg['significance']=='pvalue': warnings.append('未校正P值不能控制FDR，默认建议使用BH padj。')
     if cfg['mode']=='fastq' and not cfg.get('genome'): warnings.append('未提供匹配版本基因组：使用无 decoy 的转录组索引。正式分析建议 full-decoy；本工作站支持可选基因组 FASTA。')
     if cfg['wgcna'] and len(m)<15: warnings.append('WGCNA 将跳过：独立样本不足15个，推荐≥20。')
     if not cfg.get('annotation'): warnings.append('未指定离线注释；GO/Entrez/Symbol映射将尝试容器中的 org.Mm.eg.db。')
+    if cfg.get('analysis_stage')=='enrichment' and 'padj' not in read_table(cfg['differential_input'],nrows=1):warnings.append('输入未含padj，将对完整pvalue做BH校正；请确保不是仅包含DEG的截断表。')
+    if cfg.get('analysis_stage')=='enrichment' and not cfg.get('run_gsea'): warnings.append('未提供足够的完整 stat 排序：仅执行 ORA，GSEA跳过。')
     return jsonify(samples=m.to_dict('records'),groups=m.groupby('group').size().to_dict(),comparisons=cfg['comparisons'],covariates=cfg['covariates'],warnings=warnings,output_free_gb=round(shutil.disk_usage(RUNS).free/2**30,1))
 
 @app.post('/api/metadata')
@@ -288,12 +307,27 @@ def jobs():
 
 @app.post('/api/jobs')
 def create():
-    cfg,m=validate(request.get_json());p=RUNS/uuid.uuid4().hex;p.mkdir()
+    cfg,m=validate(request.get_json())
+    resume_from=cfg.get('resume_from')
+    if resume_from:
+        if not isinstance(resume_from,str): raise ValueError('续跑来源任务无效')
+        source=runpath(resume_from)
+        if json.loads((source/'status.json').read_text())['state'] not in ('failed','cancelled'):
+            raise ValueError('仅能从失败或取消的任务调整参数续跑')
+    cfg['reuse_completed']=cfg.get('reuse_completed',True)
+    if not isinstance(cfg['reuse_completed'],bool): raise ValueError('复用已完成步骤的选项无效')
+    p=RUNS/uuid.uuid4().hex;p.mkdir()
     m.to_csv(p/'samples.csv',index=False);save(p/'config.json',cfg)
-    inputs=[fingerprint(cfg['samples'])]
+    inputs=[fingerprint(cfg['samples'])] if cfg.get('samples') else []
     for key,name in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv')]:
         if cfg.get(key): shutil.copyfile(cfg[key],p/name);inputs.append(fingerprint(cfg[key]))
-    if cfg['mode']=='counts': read_table(cfg['counts'],index_col=0,converters={0:str})[m['sample']].to_csv(p/'counts.csv');inputs.append(fingerprint(cfg['counts']))
+    if cfg.get('analysis_stage') in ('enrichment','expression','activity','network'):
+        for key,name in [('differential_input','differential-input.csv'),('expression','expression-input.csv')]:
+            if cfg.get(key):
+                if key=='expression':read_table(cfg[key],index_col=0,converters={0:str})[m['sample']].to_csv(p/name)
+                else:read_table(cfg[key],dtype={'gene':str}).to_csv(p/name,index=False)
+                inputs.append(fingerprint(cfg[key]))
+    elif cfg['mode']=='counts': read_table(cfg['counts'],index_col=0,converters={0:str})[m['sample']].to_csv(p/'counts.csv');inputs.append(fingerprint(cfg['counts']))
     else:
         read_table(cfg['tx2gene'],dtype=str).to_csv(p/'tx2gene.tsv',sep='\t',index=False)
         inputs.append(fingerprint(cfg['tx2gene']))
@@ -308,8 +342,8 @@ def create():
                 for name in ('aux_info/meta_info.json','lib_format_counts.json','cmd_info.json'):
                     if (original/name).is_file():
                         (q/name).parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original/name,q/name)
-    save(p/'input-provenance.json',dict(files=inputs,source_commit=source_version(),created=time.time()))
-    status(p,state='queued',stage='等待',input_mode=cfg['mode'],name=cfg.get('name','小鼠 RNA-seq'),created=time.time())
+    save(p/'input-provenance.json',dict(files=inputs,source_commit=source_version(),created=time.time(),resume_from=resume_from,upstream_from=cfg.get('upstream_from')))
+    status(p,state='queued',stage='等待',input_mode=cfg['mode'],name=cfg.get('name','小鼠 RNA-seq'),created=time.time(),resume_from=resume_from)
     with lock: pending.add(p.name)
     pool.submit(execute,p)
     return jsonify(id=p.name),202
@@ -317,7 +351,62 @@ def create():
 @app.get('/api/jobs/<job>')
 def detail(job):
     p=runpath(job)
-    return jsonify(**json.loads((p/'status.json').read_text()),log=(p/'log.txt').read_text(errors='replace')[-24000:] if (p/'log.txt').exists() else '',steps=json.loads((p/'steps.json').read_text()) if (p/'steps.json').exists() else {},files=[f.name for f in p.iterdir() if f.is_file()])
+    cfg=json.loads((p/'config.json').read_text()) if (p/'config.json').exists() else {}
+    return jsonify(**json.loads((p/'status.json').read_text()),comparisons=cfg.get('comparisons',[]),log=(p/'log.txt').read_text(errors='replace')[-24000:] if (p/'log.txt').exists() else '',steps=json.loads((p/'steps.json').read_text()) if (p/'steps.json').exists() else {},files=[f.name for f in p.iterdir() if f.is_file()])
+
+@app.get('/api/jobs/<job>/settings')
+def saved_settings(job):
+    p=runpath(job)
+    if json.loads((p/'status.json').read_text())['state'] not in ('failed','cancelled'):
+        raise ValueError('请先选择失败或取消的任务')
+    cfg=json.loads((p/'config.json').read_text())
+    if 'comparisons' not in cfg: raise ValueError('此旧任务缺少完整配置，请新建任务')
+    cfg.update(resume_from=job,reuse_completed=True)
+    return jsonify(cfg)
+
+@app.post('/api/jobs/<job>/module-inputs')
+def module_inputs(job):
+    """Explicitly transfer saved upstream outputs into a new module form."""
+    from results import contrast_dir
+    p=runpath(job);state=json.loads((p/'status.json').read_text())['state']
+    if state not in ('completed','failed','cancelled'):raise ValueError('请等待当前任务结束后选择上游结果')
+    args=request.get_json();stage=args.get('analysis_stage')
+    if stage not in ('differential','enrichment','expression','activity','network'):raise ValueError('未知后续环节')
+    cfg=json.loads((p/'config.json').read_text());cfg.pop('resume_from',None)
+    cfg.update(analysis_stage=stage,upstream_from=job,samples=str(p/'samples.csv'),excluded_samples=[])
+    chosen=next((cmp for cmp in cfg.get('comparisons',[]) if cmp['name']==args.get('contrast')),None)
+    if chosen:cfg['comparisons']=[chosen]
+    for key,file in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv')]:
+        if (p/file).exists():cfg[key]=str(p/file)
+    if stage=='differential':
+        m=read_table(p/'samples.csv',dtype=str)
+        if cfg.get('mode') in ('fastq','salmon') and len(m) and all((p/'quant'/sample/'quant.sf').is_file() for sample in m['sample']):
+            m['quant']=[str(p/'quant'/sample/'quant.sf') for sample in m['sample']]
+            folder=p/'module-inputs';folder.mkdir(exist_ok=True)
+            with lock:
+                temporary=folder/'salmon_samples.tmp';m.to_csv(temporary,index=False);temporary.replace(folder/'salmon_samples.csv')
+            cfg.update(mode='salmon',samples=str(folder/'salmon_samples.csv'),tx2gene=str(p/'tx2gene.tsv'))
+        elif cfg.get('mode')=='counts' and (p/'counts.csv').exists():cfg.update(mode='counts',counts=str(p/'counts.csv'))
+        else:raise ValueError('没有完整原始计数或 Salmon 定量可供差异分析；VST/TPM不能用于DESeq2')
+    else:
+        cfg.update(mode='module',expression=str(p/'vst.csv') if (p/'vst.csv').exists() else '',expression_unit=cfg.get('expression_unit','vst'))
+        if stage=='enrichment':
+            q=contrast_dir(p,args.get('contrast'))
+            profiles=['nominal','strict'] if cfg.get('deg_profile')=='nominal' else ['strict','nominal']
+            candidates=[q/'differential.csv']+[q/'profiles'/profile/'differential.csv' for profile in profiles]
+            result=next((file for file in candidates if file.is_file()),None)
+            if result is None:raise ValueError('所选比较没有完整差异结果；请先完成或导入差异分析')
+            cfg['differential_input']=str(result)
+            if (q/'active-profile.json').is_file():
+                active=json.loads((q/'active-profile.json').read_text()).get('profile')
+                if active in ('nominal','strict'):cfg['deg_profile']=active
+            comparisons=cfg.get('comparisons',[])
+            chosen=next((c for c in comparisons if c['name']==q.name),comparisons[0] if comparisons else None)
+            if chosen:cfg['comparisons']=[chosen]
+            if not cfg['expression']:cfg.update(samples='',traits=[],covariates=[])
+        elif not cfg['expression']:raise ValueError('此任务没有已转换表达矩阵；请先完成定量/表达诊断或手动导入矩阵')
+    cfg['name']=cfg.get('name','小鼠分析')+' · '+dict(differential='差异分析',enrichment='富集',expression='表达诊断',activity='通路活性',network='共表达')[stage]
+    return jsonify(cfg)
 
 @app.post('/api/jobs/<job>/retry')
 def retry(job):
