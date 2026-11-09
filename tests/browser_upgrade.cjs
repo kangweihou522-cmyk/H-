@@ -1,0 +1,20 @@
+/* Run against a completed artificial multigroup job. Requires Playwright + Chromium. */
+const {chromium}=require('playwright');const fs=require('fs');
+const base=process.env.RNASEQ_TEST_BASE||'http://127.0.0.1:18885';const job=process.argv[2];const input=process.argv[3];if(!job||!input)throw Error('Usage: node tests/browser_upgrade.cjs SYNTHETIC_JOB INPUT_DIRECTORY');
+(async()=>{
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(String(e)));
+await page.goto(base);await page.waitForFunction(()=>state.formEpoch>0);if(await page.locator('#samples').inputValue())throw Error('Fresh inputs not cleared');
+await page.locator('#mode').selectOption('counts');await page.locator('#samples').fill(input+'/samples.csv');await page.locator('#counts').fill(input+'/counts.csv');await page.locator('#readmetadata').click();await page.waitForFunction(()=>state.metadata?.groups.length===3);
+await page.locator('[data-wizard="1"]').click();await page.locator('#comparison_mode').selectOption('all');await page.locator('#generatecomparisons').click();await page.waitForFunction(()=>document.querySelectorAll('#comparisonrows .comparison').length===3);
+await page.locator('[data-wizard="3"]').click();await page.locator('#preflight').click();await page.waitForFunction(()=>document.getElementById('preflightresult').textContent.includes('矩阵秩'));
+await page.screenshot({path:'/tmp/rnaseq-upgrade/browser-preflight.png',fullPage:true});
+await page.locator('#newproject').click();if(await page.locator('#samples').inputValue())throw Error('New task retained paths');await page.locator('#project').selectOption(job);await page.waitForFunction(()=>state.manifest?.config?.name&&state.job!==null);
+await page.locator('[data-view="differential"]').click();await page.waitForFunction(()=>state.chart?.kind==='volcano'&&state.basketReady==='volcano');
+const gene=await page.evaluate(()=>{const p=document.getElementById('plot');const gene=p.data.find(t=>t.customdata?.length)?.customdata[0];p.emit('plotly_selected',{points:[{customdata:gene}]});return gene;});await page.waitForFunction(()=>selectedGenes.size===1);await page.locator('#basketheatmap').click();await page.waitForFunction(()=>state.chart?.kind==='heatmap'&&document.getElementById('plot').data?.[0]?.z?.length===1);
+await page.locator('#chartselect').selectOption('contrast_effects|');await page.waitForFunction(()=>state.chart?.kind==='contrast_effects'&&document.getElementById('plot').data?.[0]?.type==='heatmap');
+await page.locator('#chartselect').selectOption('deg_upset|');await page.waitForFunction(()=>state.chart?.kind==='deg_upset'&&document.getElementById('plot').data?.[0]?.type==='bar');await page.screenshot({path:'/tmp/rnaseq-upgrade/browser-upset.png',fullPage:true});
+await page.locator('[data-view="network"]').click();await page.waitForFunction(()=>state.chart?.kind==='wgcna_traits');await page.waitForFunction(()=>document.getElementById('editorfields').innerText.includes('表型关联方法'));
+await page.locator('[data-view="report"]').click();await page.locator('#excelresults').waitFor();const xlsx=await page.request.get(base+'/api/jobs/'+job+'/excel');if(!xlsx.ok()||(await xlsx.body()).length<5000)throw Error('Excel export failed');
+await page.setViewportSize({width:390,height:844});await page.locator('#newproject').click();await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth);await page.locator('[data-wizard="1"]').click();await page.screenshot({path:'/tmp/rnaseq-upgrade/browser-mobile-design.png',fullPage:true});
+await page.reload();await page.waitForFunction(()=>state.formEpoch>0);if(await page.locator('#samples').inputValue())throw Error('Reload retained input');if(errors.length)throw Error(errors.join('\n'));console.log('PASS: guided multigroup design, fresh inputs, matrix preview, lasso basket→heatmap, comparison plots, adjusted associations, Excel, mobile');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

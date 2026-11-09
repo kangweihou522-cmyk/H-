@@ -24,13 +24,14 @@ def adjusted_traits(p):
     samples = read_frame(p/'samples.csv', dtype=str)
     selected = cfg.get('traits', [])
     info = dict(state='skipped', reason='没有选定可检验的连续表型', skipped=[])
-    if 'subject' in samples and samples.subject.nunique() < len(samples):
+    subject=cfg.get('subject_column','subject')
+    if subject in samples and samples[subject].nunique() < len(samples):
         info['reason'] = '存在重复 subject；当前独立样本相关检验不适用于重复测量'
         return info
     if len(samples) < 8:
         info['reason'] = '调整后基因–表型探索至少需要 8 个独立样本；较小样本仍可查看表达'
         return info
-    design_file = p/'design-matrix.csv'
+    design_file = p/('trait-design-matrix.csv' if cfg.get('trait_adjustment')=='covariates' else 'design-matrix.csv')
     if not design_file.exists():
         info['reason'] = '旧任务没有保存实际模型矩阵；需新建任务后计算调整后关联'
         return info
@@ -60,15 +61,16 @@ def adjusted_traits(p):
         correlation = np.clip(correlation, -1, 1)
         with np.errstate(divide='ignore', invalid='ignore'):
             statistic = np.abs(correlation)*np.sqrt(df/np.maximum(1-correlation**2, 1e-30))
+        z=np.arctanh(np.clip(correlation,-1+1e-14,1-1e-14));error=stats.norm.ppf(.975)/np.sqrt(df-1)
         frames.append(pd.DataFrame(dict(gene=expression.index, trait=name, correlation=correlation,
-                                       pvalue=2*stats.t.sf(statistic, df), n=len(samples), df=df)))
+                                       pvalue=2*stats.t.sf(statistic, df), n=len(samples), df=df,ci_low=np.tanh(z-error),ci_high=np.tanh(z+error),adjustment=cfg.get('trait_adjustment','design'))))
     if not frames:
         return info
     result = pd.concat(frames, ignore_index=True)
     result['padj'] = bh(result.pvalue)
     result.to_csv(p/'gene-trait-adjusted.csv', index=False)
     info.update(state='completed', reason='', tests=int(result.pvalue.notna().sum()),
-                method='Partial Pearson on declared transformed expression; residualize gene and trait against the full DESeq2 design (including group); t test; BH across all finite gene × selected-trait tests',
+                method='Partial Pearson on declared transformed expression; residualize gene and trait against the full DESeq2 design (scope declared in adjustment column); t test; BH across all finite gene × selected-trait tests',
                 caution='独立样本线性模型探索；检查线性关系、离群点和残差，不能据此推断因果')
     return info
 

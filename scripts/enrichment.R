@@ -41,6 +41,9 @@ load_annotation <- function(genes, root, cfg) {
   names(gmt) <- vapply(lines, `[`, character(1), 1)
   gd <- vapply(lines, `[`, character(1), 2); names(gd) <- names(gmt)
  }
+ coverage<-list(genes=length(genes),symbol=sum(!is.na(mapped$symbol)&nzchar(mapped$symbol)),entrez=sum(!is.na(mapped$entrez)&nzchar(mapped$entrez)),go=sum(ids%in%unique(unlist(go))),gmt=sum((if(cfg$gmt_id=='SYMBOL')mapped$symbol else if(cfg$gmt_id=='ENTREZID')mapped$entrez else ids)%in%unique(unlist(gmt))),gmt_terms=length(gmt))
+ jsonlite::write_json(coverage,file.path(root,'annotation-coverage.json'),auto_unbox=TRUE,pretty=TRUE)
+ write.csv(mapped[is.na(mapped$symbol)|!nzchar(mapped$symbol),,drop=FALSE],file.path(root,'unmapped-genes.csv'),row.names=FALSE)
  list(mapped=mapped, go=go, go_desc=descriptions, ontology=ontology, gmt=gmt, gmt_desc=gd, warning=warning)
 }
 empty_ora <- function() data.frame(term=character(),description=character(),ontology=character(),direction=character(),overlap=integer(),size=integer(),selected=integer(),background=integer(),gene_ratio=numeric(),rich_factor=numeric(),pvalue=numeric(),padj=numeric(),genes=character())
@@ -85,9 +88,11 @@ run_enrichment <- function(r,annotation,directory,cfg,run_gsea=TRUE) {
   ont <- if(database=='go')annotation$ontology else character()
   mapped <- gene_types[[database]]
   has_stat <- 'stat' %in% names(r)
-  valid <- !is.na(mapped) & nzchar(mapped) & (if(has_stat)is.finite(r$stat) else is.finite(r$pvalue))
+  valid <- !is.na(mapped) & nzchar(mapped) & (if((identical(cfg$ora_background,'stat') || !'pvalue'%in%names(r)) && has_stat)is.finite(r$stat) else is.finite(r$pvalue))
   keep <- valid;keep[valid] <- !duplicated(mapped[valid])
-  ranks <- if(has_stat)sort(setNames(r$stat[keep],mapped[keep]),decreasing=TRUE) else numeric()
+  rank_keep<-!is.na(mapped)&nzchar(mapped)&if(has_stat)is.finite(r$stat) else FALSE
+  rank_keep[rank_keep]<-!duplicated(mapped[rank_keep])
+  ranks <- if(has_stat)sort(setNames(r$stat[rank_keep],mapped[rank_keep]),decreasing=TRUE) else numeric()
   if(database=='pathway' && length(sets) && !length(intersect(mapped[keep],unique(unlist(sets)))))stop('GMT genes match zero tested genes; check gene ID type and annotation.')
   selection <- list(all=r$significant,up=r$significant & r$log2FoldChange>0,down=r$significant & r$log2FoldChange<0)
   all <- lapply(names(selection),function(direction){

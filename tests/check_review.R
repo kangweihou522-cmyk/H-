@@ -1,4 +1,5 @@
 suppressPackageStartupMessages({library(jsonlite);library(GO.db);library(fgsea)})
+source('/project/scripts/stats_support.R')
 source('/project/scripts/enrichment.R')
 cfg<-list(min_set=1,max_set=100)
 sets<-list(BP_A=c('g1','g2'),BP_B=c('g3','g4'),CC_A=c('g1','g5'))

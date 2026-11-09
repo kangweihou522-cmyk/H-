@@ -169,3 +169,15 @@ curl -H 'Content-Type: application/json' --data-binary @runs/mining_inputs/reque
 - Chromium：`tests/browser_inputs.py` 通过旧缓存清理、刷新/新建/BFCache、延迟响应与提交不回填、主动载入失败参数、单步输入/来源及手机宽度；`tests/browser_module_results.py` 通过默认结果页面、实际表达单位、无虚假FASTQ质控及缺矩阵/GSEA的界面；既有`browser_results.py`和空项目`browser_manual.py`通过标注、双方案/GSEA、ZIP及说明/Word下载。调整浏览器检查等待实际图表刷新完成，避免只看到方案标签更新就断言坐标已更新。
 - `windows.deploy.prepare` 验证新scripts/helpers、R入口与Word被包含在D盘不可变部署目录。说明Markdown/HTML/Word/清单同步为 **2026.10.27-r4**，新增第28章的完整操作与输入表。未远程操作用户Windows；部署更新仍需本机运行更新脚本。
 - 测试使用隔离的人工数据和模拟失败状态，不接触客户报告/真实测序。未重新下载官方测试数据；未验证完整小鼠参考在用户32GB设备上的资源峰值。
+
+## 2026-11-09：设计、统计、交互和高级探索增强（教程 r6）
+
+- 67项Python测试通过：新增重复对象防护/配对建模、交互设计秩与比较假设、跨lane gzip合并、真实xlsx/ID、资源快照标准化、Excel公式与精度、统一方案UpSet、已知RNA混合恢复/共线参考拒绝、空DEG热图和自定义对象ID的配对图/关联防护。
+- 管理环境重新构建实际 `mouse-rnaseq:2`，未改变用户代理、凭据或系统Docker配置。基于本地合成数据实际运行：18样本多组+batch+normal shrinkage+GO/GMT/fgsea/ssGSEA/ULM/WGCNA；12样本group×sex交互；8样本自定义mouse配对+正式效应阈值；24独立样本bicor网络及3次固定模块成员重抽样；6样本双端FASTQ+full-decoy；独立log2TPM活性/足迹/参考组成任务。
+- `tests/check_upgrade.R` 独立调用官方DESeq2核对普通Wald、交互系数、LRT、跨全部比较BH；通路/模块调整关联与独立R lm的系数、P和df一致。`tests/check_pair_threshold.R`核对对象固定效应、原始Wald区间、`lfcThreshold=1/greaterAbs`的P/BH；均通过。`tests/check_mining.R`小样本/重复对象跳过、`tests/check_review.R`原有背景/BH/ID和软阈值检查通过。全部R脚本解析及共享依赖加载通过。
+- 同一配对任务第二次直接执行统计时，记录 `Reusing verified DESeq2 fit checkpoint`，`statistics-checkpoint.json.reused=true`；检查点依据输入内容、模型、代码及R/包版本，不将旧参数模型直接套用到新设计。另从保留的合成中断源创建新任务，模型候选经R复核后`reused=true`，源任务未改写。
+- 错误GMT的真实完整任务仍生成并保留DE、summary和报告，标记富集/ssGSEA失败，TF独立完成；未用示例填充失败模块。
+- FASTQ真实工具输出：6份fastp/quant、240/240转录本匹配tx2gene、GO/GMT/fgsea、响应足迹ULM、NNLS组成及MultiQC完成，任务无图表警告。组成使用人工参考，仅验证计算/交付，不证明生物学细胞比例。独立log2TPM任务也完成足迹和组成，来源/单位保存正确。
+- `tests/browser_upgrade.cjs`在真实Chromium通过：四步设置、三组自动比较、设计矩阵、清空/刷新、套索候选→单基因热图、多比较图、原始/调整关联、Excel、390px布局；原有`browser_results.py`的点点击、Symbol定位、拖动/持久化、SVG、双方案切换且GSEA不变、曲线与ZIP回归通过。空项目`browser_manual.py`的搜索、四幅图、Word SHA、手机/桌面与独立HTML通过。
+- 实际生成结果的图表逐项通过Plotly schema与严格JSON核对，包含响应足迹、RNA组成和零DEG情形；新静态矢量图验证中文标题可保留；命名绘图方案和项目样式API测试保留表达矩阵且拒绝非法参数。窗口部署`prepare`实测纳入4个新增根模块、stats_support.R、upgrade.js与同步Word，用户数据与本地资源书签不纳入源码发布。
+- 教程网页/Word/manifest统一更新到2026.11.09-r6。仍未验证用户真实数据、完整小鼠基因组的32GB资源上限、Windows本机点击安装或Word分页；未内置dream/MuSiC/外部模块preservation，不以本次NNLS/固定模块成员重抽样替代它们。

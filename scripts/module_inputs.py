@@ -39,6 +39,8 @@ def validate_module(request):
         if result.pvalue.notna().sum()<2:raise ValueError('完整差异结果没有足够的可用P值')
         cfg['differential_input']=str(local_file(cfg['differential_input']))
         cfg['run_gsea']=bool(cfg.get('run_gsea',True) and 'stat' in result and pd.to_numeric(result['stat'],errors='coerce').notna().sum()>=10)
+    from designs import prepare_design,design_matrix
+    cfg=prepare_design(cfg,m,inferential=stage=='activity' and m.group.nunique()>1) if len(m) else cfg
     covariates=cfg.get('covariates')
     if covariates is None:covariates=[dict(name='batch',type='categorical')] if 'batch' in m and m.batch.nunique()>1 else []
     if not isinstance(covariates,list):raise ValueError('协变量须为列表')
@@ -67,8 +69,16 @@ def validate_module(request):
         seen.add(name)
         if not cmp.get('control') or not cmp.get('treatment') or cmp['control']==cmp['treatment']:raise ValueError('请声明原始比较方向：不同的对照组/处理组')
         if len(m) and not {cmp['control'],cmp['treatment']}.issubset(set(m.group)):raise ValueError('比较中的分组不在样本表中')
+        cmp.setdefault('kind','pairwise')
+        if cfg.get('interaction_factor'):
+            levels=set(m[cfg['interaction_factor']]);cmp.setdefault('factor_level',cfg['interaction_reference'])
+            if cmp['factor_level'] not in levels:raise ValueError('比较的因素水平不存在')
+            if cmp['kind']=='interaction':
+                cmp.setdefault('reference_level',cfg['interaction_reference'])
+                if cmp['reference_level'] not in levels or cmp['reference_level']==cmp['factor_level']:raise ValueError('交互参考水平无效')
+        elif cmp['kind']=='interaction':raise ValueError('交互对比需要交互模型')
     if stage=='activity' and comparisons:
-        design=np.concatenate(columns,axis=1)
+        design,_=design_matrix(cfg,m)
         if min(m.groupby('group').size())<2 or np.linalg.matrix_rank(design)<design.shape[1] or len(m)<=design.shape[1]:raise ValueError('通路活性比较需要组内重复、满秩设计与残差自由度')
     if stage=='enrichment' and len(comparisons)!=1:raise ValueError('独立富集每次导入一个比较的完整差异结果')
     cfg['comparisons']=comparisons
@@ -77,7 +87,7 @@ def validate_module(request):
     cfg['traits']=cfg.get('traits',[])
     if not isinstance(cfg['traits'],list):raise ValueError('表型列须为列表')
     for trait in cfg['traits']:
-        if trait in ('sample','subject','fastq1','fastq2','quant') or trait not in m or (m[trait]=='').any():raise ValueError('表型列缺失或无效')
+        if trait==cfg.get('subject_column','subject') or trait in ('sample','subject','fastq1','fastq2','quant') or trait not in m or (m[trait]=='').any():raise ValueError('表型列缺失或无效')
     for key,default,lo,hi,integer in [('threads',4,1,8,True),('memory',24,4,28,True),('min_set',15,3,100,True),('max_set',500,20,5000,True),('permutations',1000,100,10000,True),('wgcna_genes',3000,100,6000,True),('wgcna_power',6,1,30,True)]:
         cfg[key]=bounded(cfg.get(key,default),lo,hi,key,int if integer else float)
     if cfg['min_set']>=cfg['max_set']:raise ValueError('基因集大小范围无效')
@@ -89,8 +99,8 @@ def validate_module(request):
     cfg['wgcna_power_mode']=cfg.get('wgcna_power_mode','auto')
     if cfg['wgcna_power_mode'] not in ('auto','manual'):raise ValueError('软阈值模式无效')
     if stage!='activity':cfg['tf_network']=''
-    if stage=='activity' and not cfg.get('gmt') and not cfg.get('tf_network'):raise ValueError('通路活性需GMT，或提供小鼠调控网络计算ULM')
+    if stage=='activity' and not cfg.get('gmt') and not cfg.get('tf_network') and not cfg.get('pathway_network'):raise ValueError('通路活性需GMT，或提供小鼠调控网络计算ULM')
     validate_resources(cfg)
-    for key in ('annotation','gmt','tf_network'):
+    for key in ('annotation','gmt','tf_network','pathway_network','composition_reference'):
         if cfg.get(key):cfg[key]=str(local_file(cfg[key]))
     return cfg,m

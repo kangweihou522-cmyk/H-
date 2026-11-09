@@ -1,5 +1,6 @@
 # Run from project root: docker run --rm -v "$PWD:/project:ro" mouse-rnaseq:2 Rscript /project/tests/check_mining.R
 suppressPackageStartupMessages(library(jsonlite))
+source('/project/scripts/stats_support.R')
 source('/project/scripts/mining.R')
 check_skip <- function(n,subjects=NULL,reason){
  root<-tempfile();dir.create(root)

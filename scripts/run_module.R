@@ -2,23 +2,20 @@
 suppressPackageStartupMessages({library(jsonlite);library(GO.db);library(fgsea)})
 a<-commandArgs(TRUE);root<-a[1];cfg<-fromJSON(file.path(root,'config.json'),simplifyVector=FALSE)
 script<-sub('^--file=','',grep('^--file=',commandArgs(),value=TRUE))
-script_dir<-Sys.getenv('RNASEQ_SCRIPT_DIR',unset=dirname(gsub('~+~',' ',script,fixed=TRUE)));source(file.path(script_dir,'enrichment.R'));source(file.path(script_dir,'mining.R'))
+script_dir<-Sys.getenv('RNASEQ_SCRIPT_DIR',unset=dirname(gsub('~+~',' ',script,fixed=TRUE)));source(file.path(script_dir,'stats_support.R'));source(file.path(script_dir,'enrichment.R'));source(file.path(script_dir,'mining.R'))
 stage<-cfg$analysis_stage;m<-read.csv(file.path(root,'samples.csv'),colClasses='character',check.names=FALSE)
 for(cmp in cfg$comparisons)dir.create(file.path(root,'contrasts',cmp$name),recursive=TRUE,showWarnings=FALSE)
 summary<-list(design='No DESeq2 fit in this standalone module',samples=nrow(m),contrasts=list(),analysis_stage=stage,expression_unit=cfg$expression_unit)
 vs<-NULL
 if(file.exists(file.path(root,'expression-input.csv'))){
- rownames(m)<-m$sample;m$group<-factor(m$group)
- if(cfg$control %in% levels(m$group))m$group<-relevel(m$group,cfg$control)
- for(c in cfg$covariates)m[[c$name]]<-if(c$type=='numeric')as.numeric(m[[c$name]]) else factor(m[[c$name]])
+ m<-prepare_metadata(m,cfg)
  vs<-as.matrix(read.csv(file.path(root,'expression-input.csv'),row.names=1,check.names=FALSE,colClasses=c('character',rep('numeric',nrow(m)))))
  vs<-vs[,m$sample,drop=FALSE]
  # "vst.csv" is the common plotting interface; the declared input unit is saved
  # and displayed. No VST, size-factor estimation or fake count data is generated.
  write.csv(vs,file.path(root,'vst.csv'))
- variables<-c(vapply(cfg$covariates,`[[`,character(1),'name'),if(nlevels(m$group)>1)'group')
- design<-if(length(variables))reformulate(variables) else ~1
- mm<-model.matrix(design,m);write.csv(mm,file.path(root,'design-matrix.csv'))
+ design<-model_formula(cfg,group=nlevels(m$group)>1)
+ mm<-model.matrix(design,m);write.csv(mm,file.path(root,'design-matrix.csv'));write.csv(model.matrix(model_formula(cfg,group=FALSE),m),file.path(root,'trait-design-matrix.csv'))
  genes<-head(order(apply(vs,1,var),decreasing=TRUE),500)
  pc<-prcomp(t(vs[genes,,drop=FALSE]),center=TRUE,scale.=FALSE)
  write.csv(data.frame(sample=m$sample,group=m$group,pc$x[,seq_len(min(5,ncol(pc$x))),drop=FALSE]),file.path(root,'pca-scores.csv'),row.names=FALSE)
@@ -44,7 +41,7 @@ if(stage=='enrichment'){
   pp<-file.path(directory,'profiles',profile);dir.create(pp,recursive=TRUE,showWarnings=FALSE)
   write.csv(rp,file.path(pp,'differential.csv'),row.names=FALSE)
   for(direction in c('all','up','down'))write.csv(rp[rp$significant & (direction=='all'|rp$direction==direction),],file.path(pp,paste0('deg-',direction,'.csv')),row.names=FALSE)
-  run_enrichment(rp,annotation,pp,cfg,run_gsea=profile=='strict' && cfg$run_gsea)
+  safe_enrichment(r=rp,annotation=annotation,cfg=cfg,directory=pp,run_gsea=profile=='strict' && cfg$run_gsea)
   counts[[profile]]<-list(profile=profile,column=column,alpha=.05,lfc=lfc,total=sum(rp$significant),up=sum(rp$direction=='up'),down=sum(rp$direction=='down'))
  }
  active<-counts[[cfg$deg_profile]]

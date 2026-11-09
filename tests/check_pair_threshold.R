@@ -1,0 +1,8 @@
+suppressPackageStartupMessages(library(DESeq2))
+root<-commandArgs(TRUE)[1];dds<-readRDS(file.path(root,'dds.rds'))
+stopifnot('mouse'%in%all.vars(design(dds)))
+official<-results(dds,contrast=c('group','T','C'),alpha=.05)
+r<-read.csv(file.path(root,'contrasts','comparison','differential.csv'));i<-match(r$gene,rownames(official));stopifnot(max(abs(r$stat-official$stat[i]),na.rm=TRUE)<1e-8,max(abs(r$ci_low_raw-(official$log2FoldChange[i]-qnorm(.975)*official$lfcSE[i])),na.rm=TRUE)<1e-8)
+expected<-results(dds,contrast=c('group','T','C'),lfcThreshold=1,altHypothesis='greaterAbs',alpha=.05)
+r<-read.csv(file.path(root,'contrasts','comparison','effect-threshold.csv'));i<-match(r$gene,rownames(expected));stopifnot(max(abs(r$pvalue-expected$pvalue[i]),na.rm=TRUE)<1e-10,max(abs(r$padj-expected$padj[i]),na.rm=TRUE)<1e-10)
+cat('PASS: paired subject fixed effects; raw Wald intervals; official formal effect-threshold P and BH\n')

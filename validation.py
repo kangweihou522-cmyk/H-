@@ -24,7 +24,14 @@ def local_file(value):
     return path
 
 def read_table(path, **kwargs):
-    # Many sequencing reports name plain tab-separated text "xls".
+    # Real Excel and tabular text have different parsers; preserve string IDs.
+    path=Path(path)
+    if path.suffix.lower()=='.xls':
+        with path.open('rb') as handle:header=handle.read(8)
+        if header==bytes.fromhex('D0CF11E0A1B11AE1'):raise ValueError('旧二进制.xls请另存为.xlsx或CSV；文本.xls可以直接读取')
+    if path.suffix.lower()=='.xlsx':
+        kwargs.pop('sep',None);kwargs.pop('encoding',None)
+        return pd.read_excel(path,engine='openpyxl',**kwargs)
     return pd.read_csv(path, sep=None, engine='python', encoding='utf-8-sig', **kwargs)
 
 def bounded(value, low, high, name, cast=float):
@@ -37,6 +44,12 @@ def bounded(value, low, high, name, cast=float):
     return value
 
 def validate_resources(cfg):
+    if cfg.get('composition_reference'):
+        ref=read_table(local_file(cfg['composition_reference']),index_col=0,converters={0:str})
+        v=ref.to_numpy(float)
+        if len(ref)<50 or ref.shape[1]<2 or ref.index.has_duplicates or not np.isfinite(v).all() or (v<0).any():raise ValueError('组成参考需要至少50个唯一基因×2细胞类型，非负有限线性TPM')
+    if cfg.get('pathway_network'):
+        sub=dict(cfg,tf_network=cfg['pathway_network'],tf_id=cfg.get('pathway_network_id','ENSEMBL'));sub['pathway_network']='';validate_resources(sub)
     if cfg.get('annotation'):
         ann = read_table(local_file(cfg['annotation']), dtype=str).fillna('')
         if not {'gene', 'symbol', 'entrez', 'go', 'ontology'}.issubset(ann.columns):
@@ -112,6 +125,9 @@ def validate(cfg):
         if not {c['control'], c['treatment']}.issubset(set(m.group)):
             raise ValueError('比较中的分组不在样本表中')
         names.add(c['name'])
+    from designs import prepare_design,design_matrix
+    cfg['control']=comparisons[0]['control'];cfg['treatment']=comparisons[0]['treatment']
+    cfg=prepare_design(cfg,m)
     covariates = cfg.get('covariates')
     if covariates is None:
         covariates = [dict(name='batch', type='categorical')] if 'batch' in m and m.batch.nunique() > 1 else []
@@ -139,9 +155,23 @@ def validate(cfg):
         else:
             raise ValueError('协变量类型只能为 categorical 或 numeric')
     matrix.append(pd.get_dummies(m.group, drop_first=True, dtype=float).to_numpy())
-    design = np.concatenate(matrix, axis=1)
+    design,_ = design_matrix(cfg,m)
     if np.linalg.matrix_rank(design) < design.shape[1] or len(m) <= design.shape[1]:
         raise ValueError('批次/协变量与分组混杂，或没有残差自由度')
+    hypotheses=set()
+    for cmp in comparisons:
+        cmp.setdefault('kind','pairwise')
+        if cmp['kind'] not in ('pairwise','interaction'):raise ValueError('比较类型无效')
+        if cfg.get('interaction_factor'):
+            levels=set(m[cfg['interaction_factor']]);cmp.setdefault('factor_level',cfg['interaction_reference'])
+            if cmp['factor_level'] not in levels:raise ValueError('比较的因素水平不存在')
+            if cmp['kind']=='interaction':
+                cmp.setdefault('reference_level',cfg['interaction_reference'])
+                if cmp['reference_level'] not in levels or cmp['reference_level']==cmp['factor_level']:raise ValueError('交互对比需要两个不同因素水平')
+        elif cmp['kind']=='interaction':raise ValueError('交互对比需要交互实验设计')
+        key=(cmp['control'],cmp['treatment'],cmp['kind'],cmp.get('factor_level'),cmp.get('reference_level'))
+        if key in hypotheses:raise ValueError('比较假设重复，请删除重复组合')
+        hypotheses.add(key)
     cfg.update(mode=mode, comparisons=comparisons, covariates=covariates,
                control=comparisons[0]['control'], treatment=comparisons[0]['treatment'],
                threads=bounded(cfg.get('threads', 4), 1, 8, '线程', int),
@@ -161,7 +191,7 @@ def validate(cfg):
     if not isinstance(cfg['traits'], list):
         raise ValueError('表型列必须为列表')
     for trait in cfg['traits']:
-        if trait not in m or trait in ('sample', 'subject', 'fastq1', 'fastq2', 'quant') or (m[trait] == '').any():
+        if trait==cfg.get('subject_column','subject') or trait not in m or trait in ('sample', 'subject', 'fastq1', 'fastq2', 'quant') or (m[trait] == '').any():
             raise ValueError('表型列缺失或无效：' + str(trait))
     if mode == 'counts':
         table = read_table(local_file(cfg.get('counts')), index_col=0, converters={0:str})
@@ -222,7 +252,7 @@ def validate(cfg):
                     raise ValueError('Salmon 转录本与 tx2gene 无法唯一匹配，请核对版本与管道符前的 ID')
     validate_resources(cfg)
     cfg['tf_id']=cfg.get('tf_id','SYMBOL')
-    for key in ('tf_network','counts', 'transcripts', 'tx2gene', 'gmt', 'annotation', 'samples'):
+    for key in ('composition_reference','pathway_network','tf_network','counts', 'transcripts', 'tx2gene', 'gmt', 'annotation', 'samples'):
         if cfg.get(key):
             cfg[key] = str(local_file(cfg[key]))
     cfg['deg_profile']=cfg.get('deg_profile','strict')

@@ -112,12 +112,29 @@ def execute(p):
         cfg = json.loads((p/'config.json').read_text())
         m = pd.read_csv(p/'samples.csv', dtype=str)
         status(p, state='running')
+        toolfile=p/'runtime-tools.json'
+        if cfg.get('executor','docker')=='docker':
+            result=subprocess.run(['docker','image','inspect','mouse-rnaseq:2','--format','{{.Id}}'],capture_output=True,text=True)
+            toolchain=dict(executor='docker',image_id=result.stdout.strip() if result.returncode==0 else None)
+        else:
+            toolchain=dict(executor='native',files={name:fingerprint(shutil.which(name)) for name in ('salmon','fastp','Rscript') if shutil.which(name)})
+        previous=json.loads(toolfile.read_text()) if toolfile.exists() else None
+        if previous and previous!=toolchain:
+            for marker in list(p.glob('qc/*/complete.json'))+list(p.glob('quant/*/complete.json'))+[p/'index-complete.json']:marker.unlink(missing_ok=True)
+        save(toolfile,toolchain)
         if cfg.get('resume_from') and not (p/'resume-provenance.json').exists():
             step(p,'inputs','running','检查并复制可复用的已完成步骤')
             from scripts.resume_cache import reuse_completed
             def check_cancel():
                 if p.name in cancelled: raise RuntimeError('任务已取消')
-            report=reuse_completed(runpath(cfg['resume_from']),p,cfg,m,check_cancel)
+            source=runpath(cfg['resume_from']);source_tools=source/'runtime-tools.json'
+            same_tools=source_tools.exists() and json.loads(source_tools.read_text())==toolchain and (toolchain.get('image_id') or toolchain.get('files'))
+            report=reuse_completed(source,p,{**cfg,'reuse_completed':cfg.get('reuse_completed',True) and bool(same_tools)},m,check_cancel)
+            if not same_tools:report['notes'].append('工具版本/镜像不同或旧任务缺少运行时工具记录，未复用FASTQ缓存；可显式导入已有quant.sf')
+            if same_tools and cfg.get('reuse_completed',True) and all((source/f).is_file() for f in ('dds.rds','fit-signature.rds')):
+                for f in ('dds.rds','fit-signature.rds'):
+                    temporary=p/(f+'.tmp');shutil.copyfile(source/f,temporary);temporary.replace(p/f)
+                report['statistics_candidate']='已复制模型候选；R将再次核对内容哈希、设计、代码与包版本，不匹配则重拟合'
             save(p/'resume-provenance.json',report)
         step(p, 'inputs', 'completed', '输入检查完成')
         if cfg.get('analysis_stage') in ('enrichment','expression','activity','network'):
@@ -192,6 +209,10 @@ def execute(p):
             command(p,['Rscript',str(ROOT/'scripts/analyze.R'),str(p)])
         from discovery import run_discovery
         run_discovery(p)
+        from composition import run as run_composition
+        composition=run_composition(p)
+        if cfg.get('composition_reference'):
+            mining=json.loads((p/'mining-status.json').read_text());mining['composition']=composition;save(p/'mining-status.json',mining)
         step(p,'statistics','completed','统计与数据挖掘完成')
         step(p,'visuals','running','生成诊断图与分析报告')
         from plots import render, chart_catalog
@@ -210,11 +231,21 @@ def execute(p):
         build_report(p)
         step(p,'visuals','completed','图表与报告已生成')
         warnings=[]
+        mining=json.loads((p/'mining-status.json').read_text()) if (p/'mining-status.json').exists() else {}
+        for key,value in mining.items():
+            if isinstance(value,dict) and value.get('state')=='failed':warnings.append(key+'失败：'+value.get('reason',''))
+        for f in p.glob('contrasts/*/profiles/*/enrichment-status.json'):
+            v=json.loads(f.read_text())
+            if v.get('state')=='failed':warnings.append(str(f.relative_to(p))+': '+v.get('reason',''))
         if plot_errors: warnings.append(f'{len(plot_errors)} 张图未成功导出；统计表已保留，详情见 plot-warnings.json，可调整后重绘。')
+        if (p/'annotation-coverage.json').exists():
+            coverage=json.loads((p/'annotation-coverage.json').read_text())
+            if coverage.get('genes') and coverage.get('go',0)/coverage['genes']<.2:warnings.append('GO注释覆盖低于20%，请核对物种/ID/参考版本；结果不是质量合格判定')
         if (p/'annotation-warning.txt').exists(): warnings.append((p/'annotation-warning.txt').read_text().strip())
         if cfg['significance']=='pvalue': warnings.append('采用未校正 P 值筛选；没有控制差异基因的 FDR。')
         if (p/'salmon-qc.csv').exists():
             qc=pd.read_csv(p/'salmon-qc.csv')
+            if 'compatible_ratio' in qc and (pd.to_numeric(qc.compatible_ratio,errors='coerce')<.8).any():warnings.append('存在文库方向兼容比例低于80%的样本；启发式提示，请核对建库与Salmon方向推断')
             if 'percent_mapped' in qc and (qc.percent_mapped<60).any(): warnings.append('存在 Salmon 映射率低于60%的样本，请检查参考版本、文库方向和污染。')
         status(p,state='completed',stage='完成（有注意事项）' if warnings else '完成',finished=time.time(),warnings=warnings)
     except Exception as e:
@@ -281,6 +312,81 @@ def browse():
         if len(entries)>=1000: break
     return jsonify(path=str(p),parent=str(p.parent),entries=entries)
 
+@app.post('/api/comparisons')
+def comparison_builder():
+    from designs import generate_comparisons
+    args=request.get_json();m=read_table(local_file(args['samples']),dtype=str).fillna('')
+    factor=args.get('interaction_factor')
+    if factor and factor not in m:raise ValueError('交互因素列不存在')
+    return jsonify(comparisons=generate_comparisons(list(m.group.unique()),args.get('mode','control'),args.get('control'),list(m[factor].unique()) if factor else None,args.get('interaction_reference') or (sorted(m[factor].unique())[0] if factor else None)))
+
+@app.post('/api/scan-fastq')
+def scan_fastq():
+    from workspace_io import scan_fastq
+    return jsonify(scan_fastq(request.get_json()['directory']))
+
+@app.post('/api/sample-draft')
+def sample_draft():
+    from workspace_io import save_sample_draft,merge_lanes
+    args=request.get_json();rows=args.get('rows')
+    if args.get('merge_lanes'):rows=merge_lanes(RUNS,rows)
+    return jsonify(path=save_sample_draft(RUNS,rows,args.get('column_map')))
+
+@app.post('/api/inspect-table')
+def inspect_table():
+    frame=read_table(local_file(request.get_json()['path']),dtype=str).fillna('')
+    if len(frame)>5000:raise ValueError('样本表超过5000行，请核对是否选成了表达矩阵')
+    return jsonify(columns=list(frame),rows=frame.to_dict('records'))
+
+@app.route('/api/resources',methods=['GET','POST'])
+def resources():
+    file=STATION_ROOT/'resource-library.json'
+    with lock:
+        values=json.loads(file.read_text()) if file.exists() else {}
+        if request.method=='POST':
+            args=request.get_json();name=str(args.get('name','')).strip()
+            if not name or len(name)>100:raise ValueError('资源组合名称需要1–100字')
+            cfg={k:args[k] for k in ('transcripts','genome','tx2gene','annotation','gmt','gmt_id','assembly','release','tf_network','tf_id','pathway_network','pathway_network_id','pathway_source','composition_reference','composition_source') if args.get(k)}
+            for key in ('transcripts','genome','tx2gene','annotation','gmt','tf_network','pathway_network','composition_reference'):
+                if cfg.get(key):cfg[key]=str(local_file(cfg[key]))
+            values[name]=cfg;save(file,values)
+    return jsonify(resources=values)
+
+@app.get('/api/jobs/<job>/excel')
+def excel(job):
+    from workspace_io import excel_export
+    return send_file(excel_export(runpath(job)),as_attachment=True,download_name='rnaseq-'+job[:8]+'.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/api/jobs/<job>/recipes',methods=['GET','POST'])
+def plot_recipes(job):
+    from plots import get_settings
+    p=runpath(job);file=p/'plot-recipes.json'
+    with render_lock:
+        values=json.loads(file.read_text()) if file.exists() else {}
+        if request.method=='POST':
+            args=request.get_json();name=str(args.get('name','')).strip()
+            if not name or len(name)>100:raise ValueError('绘图方案名称需要1–100字')
+            kind=args['kind'];settings=get_settings(contrast_path(p,args.get('contrast')),kind,args.get('settings',{}))
+            values[name]=dict(kind=kind,settings=settings);save(file,values)
+    return jsonify(recipes=values)
+
+@app.post('/api/jobs/<job>/theme')
+def project_theme(job):
+    from plots import render,chart_catalog,get_settings
+    from results import build_report
+    p=runpath(job);args=request.get_json();keys=('font','label_font','up','down','neutral','group_colors','color_map')
+    if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'):raise ValueError('请等待任务结束')
+    style={k:args[k] for k in keys if k in args};style={k:get_settings(p,'pca',style)[k] for k in style}
+    errors=[]
+    with render_lock:
+        save(p/'project-theme.json',style)
+        if args.get('apply_all'):
+            for entry in chart_catalog(p):
+                try:render(contrast_path(p,entry.get('contrast')),entry['kind'],style)
+                except Exception as e:errors.append(dict(kind=entry['kind'],error=str(e)))
+        build_report(p)
+    return jsonify(ok=True,warnings=errors)
+
 @app.post('/api/preflight')
 def preflight():
     cfg,m=validate(request.get_json())
@@ -292,7 +398,9 @@ def preflight():
     if not cfg.get('annotation'): warnings.append('未指定离线注释；GO/Entrez/Symbol映射将尝试容器中的 org.Mm.eg.db。')
     if cfg.get('analysis_stage')=='enrichment' and 'padj' not in read_table(cfg['differential_input'],nrows=1):warnings.append('输入未含padj，将对完整pvalue做BH校正；请确保不是仅包含DEG的截断表。')
     if cfg.get('analysis_stage')=='enrichment' and not cfg.get('run_gsea'): warnings.append('未提供足够的完整 stat 排序：仅执行 ORA，GSEA跳过。')
-    return jsonify(samples=m.to_dict('records'),groups=m.groupby('group').size().to_dict(),comparisons=cfg['comparisons'],covariates=cfg['covariates'],warnings=warnings,output_free_gb=round(shutil.disk_usage(RUNS).free/2**30,1))
+    from designs import design_matrix
+    matrix,names=design_matrix(cfg,m) if len(m) else (np.empty((0,0)),[])
+    return jsonify(samples=m.to_dict('records'),groups=m.groupby('group').size().to_dict(),comparisons=cfg['comparisons'],covariates=cfg['covariates'],warnings=warnings,output_free_gb=round(shutil.disk_usage(RUNS).free/2**30,1),design=dict(columns=names,matrix=matrix.tolist(),rank=int(np.linalg.matrix_rank(matrix)) if len(m) else 0,residual_df=len(m)-len(names),independent_subjects=cfg.get('independent_subjects',len(m)),type=cfg.get('design_type'),fdr='每个比较内基因BH；可选另存跨全部比较BH，均不改变两套固定筛选'),batch_table=pd.crosstab(m.group,m.batch).to_dict() if 'batch' in m else {})
 
 @app.post('/api/metadata')
 def metadata():
@@ -319,8 +427,12 @@ def create():
     p=RUNS/uuid.uuid4().hex;p.mkdir()
     m.to_csv(p/'samples.csv',index=False);save(p/'config.json',cfg)
     inputs=[fingerprint(cfg['samples'])] if cfg.get('samples') else []
-    for key,name in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv')]:
-        if cfg.get(key): shutil.copyfile(cfg[key],p/name);inputs.append(fingerprint(cfg[key]))
+    for key,name in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv'),('pathway_network','pathway-network.tsv'),('composition_reference','composition-reference.csv')]:
+        if cfg.get(key):
+            if key in ('annotation','tf_network','pathway_network'):read_table(cfg[key],dtype=str).fillna('').to_csv(p/name,sep='\t',index=False)
+            elif key=='composition_reference':read_table(cfg[key],index_col=0,converters={0:str}).to_csv(p/name)
+            else:shutil.copyfile(cfg[key],p/name)
+            inputs.append(fingerprint(cfg[key]))
     if cfg.get('analysis_stage') in ('enrichment','expression','activity','network'):
         for key,name in [('differential_input','differential-input.csv'),('expression','expression-input.csv')]:
             if cfg.get(key):
@@ -352,7 +464,7 @@ def create():
 def detail(job):
     p=runpath(job)
     cfg=json.loads((p/'config.json').read_text()) if (p/'config.json').exists() else {}
-    return jsonify(**json.loads((p/'status.json').read_text()),comparisons=cfg.get('comparisons',[]),log=(p/'log.txt').read_text(errors='replace')[-24000:] if (p/'log.txt').exists() else '',steps=json.loads((p/'steps.json').read_text()) if (p/'steps.json').exists() else {},files=[f.name for f in p.iterdir() if f.is_file()])
+    return jsonify(**json.loads((p/'status.json').read_text()),comparisons=cfg.get('comparisons',[]),log=(p/'log.txt').read_text(errors='replace')[-24000:] if (p/'log.txt').exists() else '',steps=json.loads((p/'steps.json').read_text()) if (p/'steps.json').exists() else {},has_results=(p/'analysis-summary.json').exists(),files=[f.name for f in p.iterdir() if f.is_file()])
 
 @app.get('/api/jobs/<job>/settings')
 def saved_settings(job):
@@ -376,7 +488,7 @@ def module_inputs(job):
     cfg.update(analysis_stage=stage,upstream_from=job,samples=str(p/'samples.csv'),excluded_samples=[])
     chosen=next((cmp for cmp in cfg.get('comparisons',[]) if cmp['name']==args.get('contrast')),None)
     if chosen:cfg['comparisons']=[chosen]
-    for key,file in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv')]:
+    for key,file in [('annotation','annotation.tsv'),('gmt','pathways.gmt'),('tf_network','regulatory-network.tsv'),('pathway_network','pathway-network.tsv'),('composition_reference','composition-reference.csv')]:
         if (p/file).exists():cfg[key]=str(p/file)
     if stage=='differential':
         m=read_table(p/'samples.csv',dtype=str)
@@ -467,7 +579,7 @@ def chart(job,kind):
 @app.post('/api/jobs/<job>/profile')
 def choose_profile(job):
     p=runpath(job)
-    if json.loads((p/'status.json').read_text())['state']!='completed':raise ValueError('请等待分析完成')
+    if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'):raise ValueError('请等待分析结束')
     cfg=request.get_json()
     from results import select_profile
     with render_lock:result=select_profile(p,cfg.get('contrast'),cfg.get('profile'))
@@ -476,7 +588,7 @@ def choose_profile(job):
 @app.post('/api/jobs/<job>/plot')
 def plot(job):
     p=runpath(job)
-    if json.loads((p/'status.json').read_text())['state']!='completed': raise ValueError('请等待分析完成')
+    if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'): raise ValueError('请等待分析结束')
     from plots import render
     cfg=dict(request.get_json());kind=cfg.pop('kind','volcano');contrast=cfg.pop('contrast',None)
     with render_lock: render(contrast_path(p,contrast),kind,cfg)
@@ -487,7 +599,7 @@ def plot(job):
 @app.post('/api/jobs/<job>/preview')
 def preview(job):
     p=runpath(job)
-    if json.loads((p/'status.json').read_text())['state']!='completed': raise ValueError('请等待分析完成')
+    if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'): raise ValueError('请等待分析结束')
     from plots import interactive_data
     cfg=dict(request.get_json());kind=cfg.pop('kind','volcano');contrast=cfg.pop('contrast',None)
     return jsonify(interactive_data(p,kind,dict(contrast=contrast),cfg))
@@ -495,7 +607,7 @@ def preview(job):
 @app.get('/api/jobs/<job>/chart-download/<kind>/<fmt>')
 def chart_download(job,kind,fmt):
     p=runpath(job)
-    if json.loads((p/'status.json').read_text())['state']!='completed': raise ValueError('请等待分析完成')
+    if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'): raise ValueError('请等待分析结束')
     from plots import LABELS,render
     if kind not in LABELS or fmt not in ('svg','pdf','png','plot-data.csv','plot-data.json','settings.json'):
         raise ValueError('未知图表或导出格式')

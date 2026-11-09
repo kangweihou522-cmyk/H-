@@ -26,6 +26,8 @@ from dataio import read_frame
 PALETTE = ['#126657','#b64c4c','#317ba0','#bd9a4b','#8668ab','#c96d91','#73913b','#77858c']
 LABELS = dict(base_content='A/T/G/C 含量曲线', quality='碱基质量曲线', fastp_summary='原始/过滤 reads', qc_rates='Q20 / Q30 / GC 与保留率', mapping='Salmon 映射率', library_size='文库大小', distribution='表达分布', pca='PCA 样本诊断', pca_scree='PCA 方差解释', correlation='样本相关性热图', sample_distance='样本距离热图', dispersion='离散度诊断', volcano='火山图', ma='MA 图', p_hist='P 值分布诊断', heatmap='差异基因聚类热图', gene_expression='基因表达', go='GO 富集', gsea='GO GSEA', pathway='KEGG / GMT 富集', pathway_gsea='KEGG / GMT GSEA', gsea_curve='GSEA 富集曲线', leading_edge='GSEA 核心基因表达热图', enrichment_network='通路基因重叠网络', tf_activity='调控因子活性热图', tf_de='差异调控活性', activity='通路活性热图', activity_de='差异通路活性', pathway_traits='通路–表型关联热图', gene_trait='基因–表型散点图', wgcna_soft='WGCNA 软阈值诊断', wgcna_traits='模块–表型关联', wgcna_modules='共表达模块', wgcna_hubs='模块 hub 基因', wgcna_network='共表达子网络', deg_summary='各比较双方案差异统计', deg_overlap='跨比较 DEG 重叠',wgcna_enrichment='共表达模块功能富集')
 TITLES = dict(zip(LABELS, ['Base content','Read quality','Sequencing QC','Sequencing QC rates','Salmon mapping rate','Library size','Expression distribution','Sample PCA','PCA explained variance','Sample correlation','Sample distance','DESeq2 dispersion','Differential expression','MA plot','P-value distribution','Differential gene heatmap','Gene expression','GO over-representation','GO GSEA','GMT over-representation','GMT GSEA','GSEA enrichment curve','Leading-edge expression','Gene-set overlap network','Regulatory activity (ULM)','Differential regulatory activity','Pathway activity (ssGSEA)','Differential pathway activity','Pathway / trait association','Gene / phenotype exploration','WGCNA soft-threshold diagnostics','Module / trait association','WGCNA modules','Module hub genes','Coexpression subnetwork','Differential gene overview','DEG overlap across contrasts','Module over-representation']))
+from advanced_plots import LABELS as ADVANCED_LABELS
+LABELS.update(dict(footprint_activity='响应基因足迹活性',footprint_de='差异通路足迹活性'));TITLES.update(dict(footprint_activity='Response footprint activity',footprint_de='Differential footprint activity'));LABELS.update(ADVANCED_LABELS);TITLES.update(dict(contrast_effects='Gene effects across comparisons',gene_forest='Gene effect estimates and Wald intervals',pathway_comparison='Pathway effects across comparisons',deg_upset='Exact DEG intersections'))
 NOTES = {
     'volcano':'点表示基因。悬停显示 ID、Symbol、LFC、P、padj；点击查看表达，输入基因可定位，标注框可拖动。改变图中阈值仅影响显示。',
     'heatmap':'默认逐行 Z-score；颜色表示该基因在不同样本中的相对高低，不能比较不同基因的绝对表达。分组色带跟随聚类后的样本顺序。',
@@ -35,7 +37,7 @@ NOTES = {
     'enrichment_network':'边表示基因集合的 Jaccard 重叠，不是通路调控方向或蛋白互作。默认使用显著 GSEA leading-edge；可调整阈值与成员定义。',
     'gene_trait':'原始散点用于检查样本和离群点；如有调整后结果，同时列出控制分组及全部协变量后的偏 Pearson r、P 与全局 BH padj。两者可能不同，均不是因果证据。',
     'wgcna_network':'从已保存的共表达边中显示有限子网络；边权为 signed adjacency，不是蛋白互作，不代表完整网络。grey 为未分配基因，不列为 hub。',
-    'wgcna_traits':'原始 Pearson 关联；单元格可同时显示相关系数与表内 BH padj。它未调整协变量，与调整后基因–表型结果不同。',
+    'wgcna_traits':'可切换原始/调整关联；BH在同一方法内覆盖特征×表型。调整范围、n、自由度和近似区间见表。旧任务只有原始相关。',
     'wgcna_enrichment':'以进入网络的全部基因为背景（再按数据库/ontology覆盖限定），分别检验非grey模块。BH覆盖同数据库/ontology的所有模块×术语，不是DEG富集。',
     'activity':'ssGSEA 分数用于同一通路的跨样本比较；默认逐行标准化，不能把不同通路的分数当作统一活性单位。',
     'tf_activity':'ULM 根据导入的小鼠调控网络和靶基因表达估计活性，不是转录因子自身的 RNA 丰度。',
@@ -63,14 +65,15 @@ def get_settings(p, kind, opts=None):
     if 'style_version' not in saved and saved.get('width')==9 and saved.get('height')==6 and kind in ('volcano','pca'):
         saved.pop('width'); saved.pop('height')
     width,height = (7,6.5) if kind in ('volcano','pca','enrichment_network','wgcna_network') else (9,6.5)
-    cfg = dict(style_version=3,title='',width=width,height=height,font=11,dpi=300,up='#c56361',down='#397d9e',neutral='#c3cac6',alpha=.05,lfc=analysis.get('lfc',1),top=20,xlabel='',ylabel='',direction='all',significant_only=True,cluster=True,cluster_rows=True,cluster_cols=True,labels=5,genes='',gene='',term='',database='go',pcx=1,pcy=2,sample='',expression_scale='vst',gene_scale='normalized',gene_labels='symbol',annotated_genes='',label_positions={},point_size=28,point_alpha=.8,label_font=10,grid=True,legend=True,x_min='',x_max='',y_min='',y_max='',p_column=analysis.get('significance','padj'),group_colors=analysis.get('group_colors',{}),sample_labels=True,ellipse=False,symmetric_x=True,threshold_lines=True,show_points=True,connect_pairs=False,plot_style='box',heatmap_scale='row_z',color_map='blue_red',color_min='',color_max='',show_values=False,sample_order='original',ontology='all',enrichment_style='dot',enrichment_x='gene_ratio',sort_by='padj',wrap=36,read_end='R1',read_phase='both',module='',trait='',network_threshold=.2,network_nodes=40,network_members='leading_edge',correlation_method='pearson',profile_display='both')
+    cfg = dict(style_version=3,title='',width=width,height=height,font=11,dpi=300,up='#c56361',down='#397d9e',neutral='#c3cac6',alpha=.05,lfc=analysis.get('lfc',1),top=20,xlabel='',ylabel='',direction='all',significant_only=True,cluster=True,cluster_rows=True,cluster_cols=True,labels=5,genes='',gene='',term='',database='go',pcx=1,pcy=2,sample='',expression_scale='vst',gene_scale='normalized',gene_labels='symbol',annotated_genes='',label_positions={},point_size=28,point_alpha=.8,label_font=10,grid=True,legend=True,x_min='',x_max='',y_min='',y_max='',p_column=analysis.get('significance','padj'),group_colors=analysis.get('group_colors',{}),sample_labels=True,ellipse=False,symmetric_x=True,threshold_lines=True,show_points=True,connect_pairs=False,plot_style='box',heatmap_scale='row_z',color_map='blue_red',color_min='',color_max='',show_values=False,sample_order='original',ontology='all',enrichment_style='dot',enrichment_x='gene_ratio',sort_by='padj',wrap=36,read_end='R1',read_phase='both',module='',trait='',network_threshold=.2,network_nodes=40,network_members='leading_edge',correlation_method='pearson',profile_display='both',comparison_profile='strict',comparison_metric='gsea',association_mode='adjusted',heatmap_annotations='group,batch',pca_color='group',collapse_terms=False,collapse_threshold=.7)
     if (p/'active-profile.json').exists():
         active = json.loads((p/'active-profile.json').read_text())
         cfg.update(p_column=active['column'], alpha=active['alpha'], lfc=active['lfc'])
     if not (root/'normalized.csv').exists() and (root/'vst.csv').exists():cfg['gene_scale']='vst'
-    cfg.update(saved); cfg.update(opts or {})
+    theme=json.loads((root/'project-theme.json').read_text()) if (root/'project-theme.json').exists() else {}
+    cfg.update(theme);cfg.update(saved); cfg.update(opts or {})
     cfg['style_version']=3
-    ranges = [('width',3,20),('height',3,20),('font',6,30),('dpi',72,600),('top',3,100),('alpha',1e-6,.999),('lfc',0,10),('labels',0,30),('pcx',1,5),('pcy',1,5),('point_size',5,150),('point_alpha',.05,1),('label_font',6,22),('wrap',12,80),('network_threshold',.01,1),('network_nodes',5,120)]
+    ranges = [('collapse_threshold',.5,1),('width',3,20),('height',3,20),('font',6,30),('dpi',72,600),('top',3,100),('alpha',1e-6,.999),('lfc',0,10),('labels',0,30),('pcx',1,5),('pcy',1,5),('point_size',5,150),('point_alpha',.05,1),('label_font',6,22),('wrap',12,80),('network_threshold',.01,1),('network_nodes',5,120)]
     for key,lo,hi in ranges:
         try: cfg[key] = float(cfg[key])
         except (ValueError,TypeError): raise ValueError('图表参数不是数字：'+key)
@@ -79,17 +82,17 @@ def get_settings(p, kind, opts=None):
     for key in ('up','down','neutral'):
         if not re.fullmatch('#[0-9a-fA-F]{6}',str(cfg[key])):
             raise ValueError('颜色需要 #RRGGBB')
-    for key in ('title','xlabel','ylabel','gene','term','sample','genes','annotated_genes','x_min','x_max','y_min','y_max','color_min','color_max','module','trait'):
+    for key in ('title','xlabel','ylabel','gene','term','sample','genes','annotated_genes','x_min','x_max','y_min','y_max','color_min','color_max','module','trait','heatmap_annotations','pca_color'):
         if not isinstance(cfg[key],str) or len(cfg[key])>(5000 if key in ('genes','annotated_genes') else 180):
             raise ValueError('图表文本无效/过长：'+key)
     for lo,hi in [('x_min','x_max'),('y_min','y_max'),('color_min','color_max')]:
         for k in (lo,hi):
             if cfg[k]!='' and not np.isfinite(float(cfg[k])): raise ValueError('范围必须为有限数')
         if cfg[lo]!='' and cfg[hi]!='' and float(cfg[lo])>=float(cfg[hi]): raise ValueError('范围最小值必须小于最大值')
-    choices = dict(expression_scale=('vst','normalized','tpm'),gene_scale=('normalized','vst','tpm'),gene_labels=('symbol','id'),p_column=('padj','pvalue'),direction=('all','up','down'),database=('go','pathway'),plot_style=('box','violin'),heatmap_scale=('row_z','none'),color_map=('blue_red','purple_green','viridis','custom'),sample_order=('original','group'),ontology=('all','BP','CC','MF'),enrichment_style=('dot','bar','lollipop'),enrichment_x=('gene_ratio','rich_factor','overlap','neglog10'),sort_by=('padj','NES','overlap','gene_ratio'),read_end=('R1','R2'),read_phase=('before','after','both'),network_members=('leading_edge','set'),correlation_method=('pearson','spearman'),profile_display=('both','active'))
+    choices = dict(comparison_profile=('strict','nominal'),comparison_metric=('gsea','activity','tf'),association_mode=('raw','adjusted'),expression_scale=('vst','normalized','tpm'),gene_scale=('normalized','vst','tpm'),gene_labels=('symbol','id'),p_column=('padj','pvalue'),direction=('all','up','down'),database=('go','pathway'),plot_style=('box','violin'),heatmap_scale=('row_z','none'),color_map=('blue_red','purple_green','viridis','custom'),sample_order=('original','group'),ontology=('all','BP','CC','MF'),enrichment_style=('dot','bar','lollipop'),enrichment_x=('gene_ratio','rich_factor','overlap','neglog10'),sort_by=('padj','NES','overlap','gene_ratio'),read_end=('R1','R2'),read_phase=('before','after','both'),network_members=('leading_edge','set'),correlation_method=('pearson','spearman'),profile_display=('both','active'))
     for key, options in choices.items():
         if cfg[key] not in options: raise ValueError('图表选择无效：'+key)
-    for key in ('cluster','cluster_rows','cluster_cols','significant_only','grid','legend','sample_labels','ellipse','symmetric_x','threshold_lines','show_points','connect_pairs','show_values'):
+    for key in ('collapse_terms','cluster','cluster_rows','cluster_cols','significant_only','grid','legend','sample_labels','ellipse','symmetric_x','threshold_lines','show_points','connect_pairs','show_values'):
         if not isinstance(cfg[key], bool): raise ValueError('图表开关必须为布尔值：'+key)
     if not isinstance(cfg['group_colors'],dict) or any(not re.fullmatch('#[0-9a-fA-F]{6}',str(x)) for x in cfg['group_colors'].values()): raise ValueError('分组颜色格式无效')
     if not isinstance(cfg['label_positions'],dict) or len(cfg['label_positions'])>200: raise ValueError('标签位置无效')
@@ -101,22 +104,24 @@ def get_settings(p, kind, opts=None):
 def chart_catalog(p):
     charts = []
     def add(kind,stage,contrast=None): charts.append(dict(kind=kind,title=LABELS[kind],stage=stage,contrast=contrast))
-    sources = dict(fastp_summary='fastp-qc.csv',qc_rates='fastp-qc.csv',quality='fastp-qc.csv',base_content='fastp-qc.csv',mapping='salmon-qc.csv',library_size='sample-qc.csv',distribution='vst.csv',pca='vst.csv',pca_scree='pca-variance.csv',correlation='sample-correlation.csv',sample_distance='sample-distance.csv',dispersion='dispersion.csv',deg_summary='analysis-summary.json',activity='pathway-activity.csv',tf_activity='tf-activity.csv',pathway_traits='pathway-trait.csv',wgcna_soft='wgcna-soft-threshold.csv',wgcna_traits='wgcna-module-trait.csv',wgcna_modules='wgcna-modules.csv',wgcna_hubs='wgcna-modules.csv',wgcna_network='wgcna-network.csv',wgcna_enrichment='wgcna-module-enrichment.csv')
+    sources = dict(composition='composition-fractions.csv',fastp_summary='fastp-qc.csv',qc_rates='fastp-qc.csv',quality='fastp-qc.csv',base_content='fastp-qc.csv',mapping='salmon-qc.csv',library_size='sample-qc.csv',distribution='vst.csv',pca='vst.csv',pca_scree='pca-variance.csv',correlation='sample-correlation.csv',sample_distance='sample-distance.csv',dispersion='dispersion.csv',deg_summary='analysis-summary.json',activity='pathway-activity.csv',tf_activity='tf-activity.csv',footprint_activity='footprint-activity.csv',pathway_traits='pathway-trait.csv',wgcna_soft='wgcna-soft-threshold.csv',wgcna_traits='wgcna-module-trait.csv',wgcna_modules='wgcna-modules.csv',wgcna_hubs='wgcna-modules.csv',wgcna_network='wgcna-network.csv',wgcna_enrichment='wgcna-module-enrichment.csv')
     for kind,file in sources.items():
         if kind=='deg_summary' and (p/file).exists():
             contrasts=json.loads((p/file).read_text()).get('contrasts') or {}
             if not isinstance(contrasts,dict) or not any('up' in c for c in contrasts.values()):continue
-        if (p/file).exists(): add(kind,'qc' if kind in ('fastp_summary','qc_rates','quality','base_content','mapping') else 'mining' if kind in ('activity','tf_activity','pathway_traits') or kind.startswith('wgcna') else 'expression')
+        if (p/file).exists(): add(kind,'qc' if kind in ('fastp_summary','qc_rates','quality','base_content','mapping') else 'mining' if kind in ('composition','activity','tf_activity','footprint_activity','pathway_traits') or kind.startswith('wgcna') else 'expression')
     targets = [(q.name,q) for q in sorted((p/'contrasts').iterdir()) if q.is_dir()] if (p/'contrasts').is_dir() else [(None,p)]
     if (p/'vst.csv').exists() and not (p/'differential.csv').exists() and not (p/'contrasts').exists():add('gene_expression','expression')
-    if len([q for _,q in targets if (q/'deg-all.csv').exists()])>1: add('deg_overlap','differential')
+    if len([q for _,q in targets if (q/'deg-all.csv').exists()])>1:
+        for kind in ('deg_overlap','contrast_effects','gene_forest','deg_upset'):add(kind,'differential')
+    if len(targets)>1 and any((q/'pathway_gsea.csv').exists() or (q/'gsea.csv').exists() for _,q in targets):add('pathway_comparison','enrichment')
     for name,q in targets:
-        for kind,file in dict(volcano='differential.csv',ma='differential.csv',p_hist='differential.csv',heatmap='differential.csv',gene_expression='differential.csv',go='go.csv',gsea='gsea.csv',pathway='pathway.csv',pathway_gsea='pathway_gsea.csv',activity_de='pathway-activity-differential.csv',tf_de='tf-activity-differential.csv').items():
+        for kind,file in dict(volcano='differential.csv',ma='differential.csv',p_hist='differential.csv',heatmap='differential.csv',gene_expression='differential.csv',go='go.csv',gsea='gsea.csv',pathway='pathway.csv',pathway_gsea='pathway_gsea.csv',activity_de='pathway-activity-differential.csv',tf_de='tf-activity-differential.csv',footprint_de='footprint-activity-differential.csv').items():
             if not (q/file).exists(): continue
             if kind in ('heatmap','gene_expression') and not (p/'vst.csv').exists():continue
             if kind=='ma' and ('baseMean' not in read_frame(q/file) or not (read_frame(q/file).baseMean>0).any()):continue
             if kind in ('go','gsea','pathway','pathway_gsea','activity_de','tf_de') and read_frame(q/file).empty: continue
-            add(kind,'differential' if kind in ('volcano','ma','p_hist','heatmap','gene_expression') else 'mining' if kind in ('activity_de','tf_de') else 'enrichment',name)
+            add(kind,'differential' if kind in ('volcano','ma','p_hist','heatmap','gene_expression') else 'mining' if kind in ('activity_de','tf_de','footprint_de') else 'enrichment',name)
         valid_gsea = any((q/f).exists() and not read_frame(q/f).dropna(subset=['padj','NES']).empty for f in ('gsea.csv','pathway_gsea.csv'))
         if (p/'gene-sets.json').exists() and valid_gsea:
             for kind in ('gsea_curve','leading_edge','enrichment_network'): add(kind,'enrichment',name)
@@ -168,7 +173,7 @@ def gsea_database(p,cfg):
 
 def load_plot(p,kind,cfg):
     from results import gene_data, curve_data
-    root = data_root(p);m = read_frame(root/'samples.csv');v = read_frame(root/'vst.csv',index_col=0) if (root/'vst.csv').exists() else pd.DataFrame()
+    root = data_root(p);m = read_frame(root/'samples.csv',dtype=str);v = read_frame(root/'vst.csv',index_col=0) if (root/'vst.csv').exists() else pd.DataFrame()
     r = read_frame(p/'differential.csv') if (p/'differential.csv').exists() else None
     contrast = p.name if p!=root else None
     if kind in ('volcano','ma'):
@@ -195,6 +200,8 @@ def load_plot(p,kind,cfg):
         a,b = int(cfg['pcx']),int(cfg['pcy'])
         if f'PC{a}' not in x or f'PC{b}' not in x or a==b: raise ValueError('请选择存在且不同的主成分')
         x['plot_x']=x[f'PC{a}'];x['plot_y']=x[f'PC{b}']
+        if cfg['pca_color'] not in m:raise ValueError('PCA着色列不在样本表中')
+        if cfg['pca_color']!='group':x['group']=m.set_index('sample').loc[x['sample'],cfg['pca_color']].astype(str).to_numpy()
         return 'pca',x,(f'PC{a} ({variance[a-1]:.1%})',f'PC{b} ({variance[b-1]:.1%})')
     if kind in ('heatmap','leading_edge'):
         if cfg['genes']: genes = resolve_genes(root,contrast,cfg['genes'])
@@ -217,18 +224,20 @@ def load_plot(p,kind,cfg):
             np.fill_diagonal(condensed_source,0)
             order = leaves_list(linkage(squareform(condensed_source,checks=False),method='average'));x = x.iloc[order,order]
         return 'matrix',x,('Samples','Samples')
-    if kind in ('activity','tf_activity'):
-        x = read_frame(root/('tf-activity.csv' if kind=='tf_activity' else 'pathway-activity.csv'),index_col=0)
+    if kind in ('activity','tf_activity','footprint_activity'):
+        x = read_frame(root/('footprint-activity.csv' if kind=='footprint_activity' else 'tf-activity.csv' if kind=='tf_activity' else 'pathway-activity.csv'),index_col=0)
         x = x.loc[x.var(axis=1).nlargest(int(cfg['top'])).index,m['sample']]
-        return 'heatmap',ordered_matrix(x,m,cfg),('Samples','Row Z-score' if cfg['heatmap_scale']=='row_z' else 'ULM score' if kind=='tf_activity' else 'ssGSEA score')
+        return 'heatmap',ordered_matrix(x,m,cfg),('Samples','Row Z-score' if cfg['heatmap_scale']=='row_z' else 'ULM score' if kind in ('tf_activity','footprint_activity') else 'ssGSEA score')
     if kind in ('wgcna_traits','pathway_traits'):
         x = read_frame(root/('wgcna-module-trait.csv' if kind=='wgcna_traits' else 'pathway-trait.csv'))
+        if 'method' in x:x=x[x.method==cfg['association_mode']]
+        elif cfg['association_mode']=='adjusted':cfg['association_mode']='raw'
         key = 'module' if kind=='wgcna_traits' else 'term'
         if kind=='pathway_traits':
             terms = x.groupby(key).padj.min().nsmallest(int(cfg['top'])).index;x = x[x[key].isin(terms)]
         return 'association',x,('Traits','Modules' if key=='module' else 'Pathways')
-    if kind in ('go','pathway','gsea','pathway_gsea','activity_de','tf_de','wgcna_enrichment'):
-        filename = {'activity_de':'pathway-activity-differential.csv','tf_de':'tf-activity-differential.csv'}.get(kind,kind+'.csv')
+    if kind in ('go','pathway','gsea','pathway_gsea','activity_de','tf_de','footprint_de','wgcna_enrichment'):
+        filename = {'activity_de':'pathway-activity-differential.csv','tf_de':'tf-activity-differential.csv','footprint_de':'footprint-activity-differential.csv'}.get(kind,kind+'.csv')
         x = read_frame(root/'wgcna-module-enrichment.csv') if kind=='wgcna_enrichment' else read_frame(p/filename)
         if kind=='wgcna_enrichment':
             x=x[x.database==cfg['database']]
@@ -238,17 +247,29 @@ def load_plot(p,kind,cfg):
         if kind in ('go','pathway') and 'direction' in x:
             x = x[x.direction==cfg['direction']]
             if cfg['ontology']!='all': x=x[x.ontology==cfg['ontology']]
-        if kind in ('activity_de','tf_de'): x = x.rename(columns={'adj.P.Val':'padj','logFC':'NES'})
+        if kind in ('activity_de','tf_de','footprint_de'): x = x.rename(columns={'adj.P.Val':'padj','logFC':'NES'})
         x = x.dropna(subset=['padj'])
         if cfg['significant_only']: x = x[x.padj<cfg['alpha']]
         sort = cfg['sort_by'] if cfg['sort_by'] in x else 'padj'
-        x = x.sort_values(sort,ascending=sort=='padj',kind='stable').head(int(cfg['top'])).copy()
+        x = x.sort_values(sort,ascending=sort=='padj',kind='stable').copy()
+        if cfg['collapse_terms'] and kind in ('go','pathway','gsea','pathway_gsea') and (root/'gene-sets.json').exists():
+            sets=json.loads((root/'gene-sets.json').read_text()).get('go' if kind in ('go','gsea') else 'pathway',{});kept=[]
+            for idx,row in x.iterrows():
+                members=sets.get(row.term,[]);members=set(members if isinstance(members,list) else [members])
+                duplicate=False
+                for prior,previous in kept:
+                    if 'ontology' in row and row.get('ontology')!=x.loc[prior].get('ontology'):continue
+                    if members|previous and len(members&previous)/len(members|previous)>=cfg['collapse_threshold']:duplicate=True;break
+                if not duplicate:kept.append((idx,members))
+                if len(kept)>=int(cfg['top']):break
+            x=x.loc[[idx for idx,_ in kept]]
+        x=x.head(int(cfg['top']))
         if 'description' not in x: x['description']=x.term
         if kind in ('go','pathway','wgcna_enrichment'):
             x['plot_x'] = -np.log10(x.padj.clip(lower=1e-300)) if cfg['enrichment_x']=='neglog10' else x[cfg['enrichment_x']]
             axis = {'gene_ratio':'Gene ratio (k / n)','rich_factor':'Rich factor (k / K)','overlap':'Overlap genes','neglog10':'−log10 BH adjusted P'}[cfg['enrichment_x']]
             return 'dot',x,(axis,'Gene sets')
-        return 'barh',x,('Activity score difference' if kind in ('activity_de','tf_de') else 'Normalized enrichment score (NES)','Gene sets')
+        return 'barh',x,('Activity score difference' if kind in ('activity_de','tf_de','footprint_de') else 'Normalized enrichment score (NES)','Gene sets')
     if kind=='gsea_curve':
         return 'curve',curve_data(root,gsea_database(p,cfg),cfg['term'],contrast),('Gene rank','Running enrichment score')
     if kind in ('gene_expression','gene_trait'):
@@ -374,7 +395,7 @@ def heatmap_view(data,kind,root,cfg):
     labels=gene_labels(root,matrix.index,cfg) if kind in ('heatmap','leading_edge') else list(matrix.index)
     if annotations is None: annotations=[[f'{val:.2f}' for val in row] for row in matrix.to_numpy()]
     lo,hi=(None,None)
-    if kind in ('heatmap','leading_edge','activity','tf_activity') and cfg['heatmap_scale']=='row_z': lo,hi=-2,2
+    if kind in ('heatmap','leading_edge','activity','tf_activity','footprint_activity') and cfg['heatmap_scale']=='row_z': lo,hi=-2,2
     if kind in ('correlation','deg_overlap'): lo,hi=(-1,1) if kind=='correlation' else (0,1)
     if kind in ('wgcna_traits','pathway_traits'): lo,hi=-1,1
     if cfg['color_min']!='': lo=float(cfg['color_min'])
@@ -406,7 +427,10 @@ def selected_labels(data,cfg):
 
 
 def render(p,kind,opts):
-    cfg=get_settings(p,kind,opts);root=data_root(p);m=read_frame(root/'samples.csv');groups=colors_for(m,root,cfg)
+    if kind in ADVANCED_LABELS:
+        from advanced_plots import render as render_advanced
+        return render_advanced(p,kind,get_settings(p,kind,opts))
+    cfg=get_settings(p,kind,opts);root=data_root(p);m=read_frame(root/'samples.csv',dtype=str);groups=colors_for(m,root,cfg)
     if kind in ('gsea_curve','leading_edge','enrichment_network'):cfg['database']=gsea_database(p,cfg)
     category,data,axes=load_plot(p,kind,cfg)
     axes=tuple(label.replace('VST',expression_label(root)) for label in axes)
@@ -439,9 +463,9 @@ def render(p,kind,opts):
                     np.random.seed(42);adjust_text(texts,x=data.plot_x.to_numpy(),y=data.plot_y.to_numpy(),ax=ax,time_lim=.5,arrowprops=dict(arrowstyle='-',color='#69756d',lw=.7))
             elif category=='pca':
                 for g in data.group.unique():
-                    x=data[data.group==g];ax.scatter(x.plot_x,x.plot_y,color=groups[g],label=g,s=cfg['point_size'],alpha=cfg['point_alpha'])
+                    x=data[data.group==g];ax.scatter(x.plot_x,x.plot_y,color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),label=g,s=cfg['point_size'],alpha=cfg['point_alpha'])
                     ellipse=ellipse_points(x) if cfg['ellipse'] else None
-                    if ellipse is not None: ax.plot(ellipse[:,0],ellipse[:,1],color=groups[g],lw=1,alpha=.65)
+                    if ellipse is not None: ax.plot(ellipse[:,0],ellipse[:,1],color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),lw=1,alpha=.65)
                 if cfg['sample_labels']:
                     for row in data.itertuples(): ax.annotate(row.sample,(row.plot_x,row.plot_y),fontsize=cfg['label_font'],xytext=(4,4),textcoords='offset points')
             elif category in ('heatmap','matrix','association'):
@@ -454,9 +478,14 @@ def render(p,kind,opts):
                     if cfg['show_values'] and matrix.size<=600:
                         for i in range(len(matrix)):
                             for j in range(len(matrix.columns)): ax.text(j,i,annotations[i][j],ha='center',va='center',fontsize=min(cfg['label_font'],9))
-                    sample_group=dict(zip(m['sample'],m.group))
-                    for j,name in enumerate(matrix.columns):
-                        if name in sample_group: ax.plot(j,-.65,marker='s',color=groups[sample_group[name]],markersize=7,clip_on=False)
+                    if len(matrix.columns) and all(name in set(m['sample']) for name in matrix.columns):
+                        from matplotlib.patches import Patch
+                        handles=[]
+                        for k,col in enumerate([c.strip() for c in cfg['heatmap_annotations'].split(',') if c.strip() in m]):
+                            values=m.set_index('sample').loc[matrix.columns,col].astype(str);levels=list(dict.fromkeys(values));colors={v:(groups.get(v,PALETTE[i%len(PALETTE)]) if col=='group' else PALETTE[i%len(PALETTE)]) for i,v in enumerate(levels)}
+                            for j,val in enumerate(values):ax.plot(j,1.03+.045*k,marker='s',color=colors[val],markersize=6,transform=ax.get_xaxis_transform(),clip_on=False)
+                            handles.extend(Patch(color=colors[val],label=col+'='+val) for val in levels)
+                        if handles:fig.legend(handles=handles,loc='outside lower center',ncol=min(5,len(handles)),fontsize=7)
             elif category in ('dot','barh'):
                 if data.empty: empty_plot(ax,'No gene sets at the selected threshold')
                 else:
@@ -482,9 +511,9 @@ def render(p,kind,opts):
             elif category in ('gene','trait'):
                 x=pd.DataFrame(data['samples']);scale=data['scale'];rng=np.random.default_rng(42)
                 if category=='gene':
-                    if cfg['connect_pairs'] and 'subject' in x:
+                    if cfg['connect_pairs'] and data.get('subject_column','subject') in x:
                         order={g:i for i,g in enumerate(x.group.unique())}
-                        for _,subject in x.groupby('subject'):
+                        for _,subject in x.groupby(data.get('subject_column','subject')):
                             points=subject.assign(plot_x=subject.group.map(order)).sort_values('plot_x')
                             ax.plot(points.plot_x,points[scale],color=cfg['neutral'],lw=.8,zorder=1)
                     for i,g in enumerate(x.group.unique()):
@@ -497,7 +526,7 @@ def render(p,kind,opts):
                     ax.set_xticks(range(x.group.nunique()),list(x.group.unique()))
                 else:
                     for g in x.group.unique():
-                        part=x[x.group==g];ax.scatter(part[data['trait']],part[scale],color=groups[g],label=g,s=cfg['point_size'],alpha=cfg['point_alpha'])
+                        part=x[x.group==g];ax.scatter(part[data['trait']],part[scale],color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),label=g,s=cfg['point_size'],alpha=cfg['point_alpha'])
                     if cfg['sample_labels']:
                         for row in x.to_dict('records'): ax.annotate(row['sample'],(row[data['trait']],row[scale]),fontsize=8,xytext=(3,3),textcoords='offset points')
                     if data['adjusted']:
@@ -583,14 +612,17 @@ def apply_axes(ax,cfg,kind,category,axes):
 
 
 def interactive_data(p,kind,args,options=None):
+    if kind in ADVANCED_LABELS:
+        from advanced_plots import spec
+        root=data_root(p);overrides={k:args[k] for k in ('gene','genes','database','comparison_metric','comparison_profile','direction') if args.get(k)};overrides.update(options or {});cfg=get_settings(root,kind,overrides);return json_safe(spec(root,kind,cfg))
     from results import contrast_dir, records
-    target=contrast_dir(p,args.get('contrast'));overrides={k:args[k] for k in ('term','gene','database','sample','annotated_genes','trait','module') if args.get(k)}
+    target=contrast_dir(p,args.get('contrast'));overrides={k:args[k] for k in ('term','gene','genes','database','sample','annotated_genes','trait','module') if args.get(k)}
     overrides.update(options or {})
     cfg=get_settings(target,kind,overrides)
     if kind in ('gsea_curve','leading_edge','enrichment_network'):cfg['database']=gsea_database(target,cfg)
     category,data,axes=load_plot(target,kind,cfg)
     axes=tuple(label.replace('VST',expression_label(data_root(target))) for label in axes)
-    root=data_root(target);m=read_frame(root/'samples.csv');groups=colors_for(m,root,cfg)
+    root=data_root(target);m=read_frame(root/'samples.csv',dtype=str);groups=colors_for(m,root,cfg)
     layout=dict(title=dict(text=cfg['title'] or TITLES[kind],x=.5,font=dict(size=cfg['font']+4)),xaxis=dict(title=dict(text=axes[0]),showgrid=cfg['grid'],gridcolor='#e8ece9',zeroline=False,automargin=True),yaxis=dict(title=dict(text=axes[1]),showgrid=cfg['grid'],gridcolor='#e8ece9',zeroline=False,automargin=True),margin=dict(l=75,r=45,t=85,b=85),font=dict(size=cfg['font']),paper_bgcolor='#ffffff',plot_bgcolor='#ffffff',showlegend=cfg['legend'],legend=dict(orientation='h',y=-.18,x=.5,xanchor='center'),hovermode='closest')
     traces=[];marker=dict(size=np.sqrt(cfg['point_size'])*1.5,opacity=cfg['point_alpha'])
     if category=='scatter':
@@ -620,28 +652,33 @@ def interactive_data(p,kind,args,options=None):
         else: layout['xaxis']['type']='log'
     elif category=='pca':
         for g in data.group.unique():
-            x=data[data.group==g];traces.append(dict(type='scatter',mode='markers+text' if cfg['sample_labels'] else 'markers',name=g,x=x.plot_x.tolist(),y=x.plot_y.tolist(),text=x['sample'].tolist(),textposition='top center',textfont=dict(size=cfg['label_font']),marker=dict(color=groups[g],**marker),hovertemplate='%{text}<br>%{x:.3g}, %{y:.3g}<extra>%{fullData.name}</extra>'))
+            x=data[data.group==g];traces.append(dict(type='scatter',mode='markers+text' if cfg['sample_labels'] else 'markers',name=g,x=x.plot_x.tolist(),y=x.plot_y.tolist(),text=x['sample'].tolist(),textposition='top center',textfont=dict(size=cfg['label_font']),marker=dict(color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),**marker),hovertemplate='%{text}<br>%{x:.3g}, %{y:.3g}<extra>%{fullData.name}</extra>'))
             ellipse=ellipse_points(x) if cfg['ellipse'] else None
-            if ellipse is not None: traces.append(dict(type='scatter',mode='lines',x=ellipse[:,0].tolist(),y=ellipse[:,1].tolist(),line=dict(color=groups[g],width=1),showlegend=False,hoverinfo='skip'))
+            if ellipse is not None: traces.append(dict(type='scatter',mode='lines',x=ellipse[:,0].tolist(),y=ellipse[:,1].tolist(),line=dict(color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),width=1),showlegend=False,hoverinfo='skip'))
     elif category in ('heatmap','matrix','association'):
         matrix,labels,annotations,lo,hi=heatmap_view(data,kind,root,cfg);_,colorscale=palette(cfg)
         trace=dict(type='heatmap',z=matrix.to_numpy().tolist(),x=list(matrix.columns),y=labels,colorscale=colorscale,hovertemplate='%{y}<br>%{x}: %{z:.4g}<extra></extra>',colorbar=dict(thickness=12,len=.7),showscale=True)
         if lo is not None: trace['zmin']=lo
         if hi is not None: trace['zmax']=hi
         if cfg['show_values'] and matrix.size<=600: trace.update(text=[[v.replace('\n','<br>') for v in row] for row in annotations],texttemplate='%{text}',textfont=dict(size=min(cfg['label_font'],11)))
-        if kind in ('heatmap','leading_edge','activity','tf_activity'):
+        if kind in ('heatmap','leading_edge','activity','tf_activity','footprint_activity'):
             trace['customdata']=[[g]*len(matrix.columns) for g in matrix.index]
             trace['hovertemplate']='%{y}<br>%{customdata}<br>%{x}: %{z:.4g}<extra></extra>'
         if category=='association':
             trace['text']=[[v.replace('\n','<br>') for v in row] for row in annotations];trace['hovertemplate']='%{y}<br>%{x}<br>%{text}<extra></extra>'
         traces=[trace];layout['yaxis']['autorange']='reversed';layout['yaxis']['tickfont']=dict(size=cfg['label_font']);layout['margin']['l']=130
         if matrix.empty: layout['annotations']=[dict(x=.5,y=.5,xref='paper',yref='paper',text='没有符合当前条件的基因或基因集',showarrow=False)]
-        # A separate categorical annotation strip follows the actual plotted order.
-        sample_group=dict(zip(m['sample'],m.group))
-        if len(matrix.columns) and all(s in sample_group for s in matrix.columns):
-            traces.append(dict(type='scatter',mode='markers',x=list(matrix.columns),y=[.5]*len(matrix.columns),yaxis='y2',marker=dict(symbol='square',size=10,color=[groups[sample_group[s]] for s in matrix.columns]),text=[sample_group[s] for s in matrix.columns],showlegend=False,hovertemplate='%{x}: %{text}<extra></extra>'))
-            layout['yaxis']['domain']=[0,.94]
-            layout['yaxis2']=dict(domain=[.965,1],range=[0,1],visible=False,fixedrange=True,anchor='x')
+        if len(matrix.columns) and all(name in set(m['sample']) for name in matrix.columns):
+            cols=[c.strip() for c in cfg['heatmap_annotations'].split(',') if c.strip() in m]
+            if cols:
+                layout['yaxis']['domain']=[0,.84]
+                for k,col in enumerate(cols):
+                    values=m.set_index('sample').loc[matrix.columns,col].astype(str);levels=list(dict.fromkeys(values));codes=[levels.index(val) for val in values];n=max(1,len(levels)-1)
+                    colors=[groups.get(val,PALETTE[j%len(PALETTE)]) if col=='group' else PALETTE[j%len(PALETTE)] for j,val in enumerate(levels)]
+                    scale=[[j/max(1,len(colors)-1),c] for j,c in enumerate(colors)] if len(colors)>1 else [[0,colors[0]],[1,colors[0]]]
+                    axis='y'+str(k+2);layout['yaxis'+str(k+2)]=dict(domain=[.87+k*.1/len(cols),.87+(k+.8)*.1/len(cols)],visible=False)
+                    traces.append(dict(type='heatmap',x=list(matrix.columns),y=[col],z=[codes],zmin=0,zmax=n,colorscale=scale,showscale=False,yaxis=axis,text=[values.tolist()],hovertemplate=col+': %{text}<extra></extra>'))
+                    layout.setdefault('annotations',[]).append(dict(text=col,xref='paper',yref='paper',x=0,y=.87+(k+.4)*.1/len(cols),xanchor='right',showarrow=False,font=dict(size=9)))
     elif category in ('dot','barh'):
         labels=wrapped(data.description,cfg,True);ids=data.term.tolist()
         if category=='dot':
@@ -668,16 +705,16 @@ def interactive_data(p,kind,args,options=None):
         frame=pd.DataFrame(data['samples']);scale=data['scale']
         if category=='gene':
             for g in frame.group.unique():
-                x=frame[frame.group==g];trace=dict(type=cfg['plot_style'],name=g,y=x[scale].tolist(),text=x['sample'].tolist(),marker=dict(color=groups[g],**marker),hovertemplate='%{text}<br>%{y:.3g}<extra></extra>')
+                x=frame[frame.group==g];trace=dict(type=cfg['plot_style'],name=g,y=x[scale].tolist(),text=x['sample'].tolist(),marker=dict(color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),**marker),hovertemplate='%{text}<br>%{y:.3g}<extra></extra>')
                 if cfg['plot_style']=='box': trace.update(boxpoints='all' if cfg['show_points'] else False,jitter=.3)
                 else: trace.update(points='all' if cfg['show_points'] else False,box=dict(visible=True),meanline=dict(visible=True),jitter=.2)
                 traces.append(trace)
-            if cfg['connect_pairs'] and 'subject' in frame:
-                for subject,x in frame.groupby('subject'):
+            if cfg['connect_pairs'] and data.get('subject_column','subject') in frame:
+                for subject,x in frame.groupby(data.get('subject_column','subject')):
                     if len(x)>1: traces.append(dict(type='scatter',mode='lines',x=x.group.tolist(),y=x[scale].tolist(),line=dict(color=cfg['neutral'],width=1),name=str(subject),showlegend=False,hoverinfo='skip'))
         else:
             for g in frame.group.unique():
-                x=frame[frame.group==g];traces.append(dict(type='scatter',mode='markers+text' if cfg['sample_labels'] else 'markers',name=g,x=x[data['trait']].tolist(),y=x[scale].tolist(),text=x['sample'].tolist(),textposition='top center',marker=dict(color=groups[g],**marker)))
+                x=frame[frame.group==g];traces.append(dict(type='scatter',mode='markers+text' if cfg['sample_labels'] else 'markers',name=g,x=x[data['trait']].tolist(),y=x[scale].tolist(),text=x['sample'].tolist(),textposition='top center',marker=dict(color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),**marker)))
             if data['adjusted']:
                 a=data['adjusted'][0];layout['annotations']=[dict(x=.5,y=1.04,xref='paper',yref='paper',text=f"Adjusted {expression_label(root)} r={a['correlation']:.3g}; global q={a['padj']:.3g}",showarrow=False)]
         layout['title']['text']=cfg['title'] or html.escape(data['gene'])

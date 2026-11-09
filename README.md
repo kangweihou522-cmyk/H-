@@ -7,6 +7,21 @@
 页面按样本设计、测序质控、表达诊断、差异、富集、通路/基因、网络/表型、报告八步组织。流程和图表改进参考用户报告正文，以及 nf-core、MultiQC、DESeq2、fgsea、GSVA、WGCNA、decoupleR、EnhancedVolcano、ComplexHeatmap、ideal 等成熟项目；具体采用与借鉴范围见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。用户报告和真实客户数据不包含在仓库里。
 
 
+
+## 当前增强版（2026-11-09）
+
+- 四步设置向导、FASTQ目录扫描与gzip跨lane合并、可编辑样本草稿、真实xlsx列映射、显式本地资源组合。
+- 独立/配对/分组×第二分类因素交互；重复对象防误用；自动生成统一对照/所有两两/条件效应及差中之差，最多30比较。
+- 独立LRT总体表、原始Wald区间、可选跨全部比较BH与正式效应阈值检验，保留用户原有两套DEG规则。
+- 通路/模块raw与adjusted关联、覆盖率与未映射名单、DE模型检查点与可选模块失败隔离。
+- 跨比较效应图/森林图/通路矩阵/统一方案UpSet；火山图套索候选→热图，多层注释、项目样式和命名绘图方案。
+- 小鼠响应足迹ULM、bicor与固定模块成员重抽样稳定性、参考辅助NNLS组成探索；均按实际输入和边界报告。
+- 多Sheet Excel保留ID/完整数值；网页与Word教程 `2026.11.09-r6` 同步。详见教程第30章及 [验证记录](VALIDATION.md)。
+
+![增强版设计向导：合成三组样本、配对/交互与比较生成](docs/images/design-wizard.png)
+
+旧任务不会自动补算新统计。用户本地完成运行任务后执行 `更新工作站.bat`，重启并Ctrl+F5。NNLS是参考条件下RNA贡献，不是已验证的细胞数量比例；简单配对不等于复杂随机效应，仍需专门模型。
+
 ## Windows D 盘一键部署
 
 下载并全部解压新版源码，双击 **部署到D盘.bat**，创建 **D:\转录组分析工作站** 和桌面快捷方式。以后双击 **启动工作站.bat**，或在 Ubuntu 执行 `bash ~/启动转录组工作站.sh`；默认端口8767，避免与16S的8765冲突。程序/分析结果在D盘，Python环境在Ubuntu，Docker存储保持现有设置。[首次部署、每天启动、固定目录与更新](docs/WINDOWS_D_DRIVE.md)。
@@ -129,13 +144,13 @@ docker run --rm -v "$PWD:/project" mouse-rnaseq:2 \
   Rscript /project/scripts/export_mouse_annotation.R /project/annotation.tsv
 ```
 
-没有真实注释时会明确标记GO未运行。zero-mapping GMT会报错；合成验证注释不用于真实数据。
+没有真实注释时会明确标记GO未运行。zero-mapping GMT会记录可选模块失败并保留已完成DE；合成验证注释不用于真实数据。
 
 挖掘模块：
 
 - **GSVA ssGSEA**：每个样本的GMT活性分数，limma使用与DESeq2相同的协变量和比较方向；`logFC`在这里是活性分数差，不是基因log2倍数。
 - **关键基因**：ID/Symbol/Entrez查询、各个生物学重复表达、LFC/P/padj，结合leading-edge。数值表型的Spearman关联仅为探索、未调整协变量/全基因多重检验。
-- **WGCNA**：≥15独立样本（推荐20+），重复subject当前跳过；VST最高变异3000基因（可调100–6000），signed网络，block≤3000、minModuleSize30、mergeCutHeight0.25；输出soft threshold、模块、eigengene、kME、module–trait及≤500条hub网络边。默认power6需结合signed R²、slope和连接度选择；module–trait当前是未调整协变量Pearson，表内BH，不作因果宣称。
+- **WGCNA**：≥15独立样本（推荐20+），重复subject当前跳过；VST最高变异3000基因（可调100–6000），signed网络，block≤3000、minModuleSize30、mergeCutHeight0.25；输出soft threshold、模块、eigengene、kME、module–trait及≤500条hub网络边。界面默认自动选power，也可手动6并结合signed R²、slope和连接度判断；module–trait保存raw/adjusted，方法内BH，不作因果宣称。
 - **调控活性**：提供小鼠 `source,target,weight` TSV（例如DoRothEA，target ID类型可选）。来源/target不可重复，权重非零有限数，每个source至少5个检测到的target。使用decoupleR ULM和同设计limma比较。没有网络或映射不足会说明原因，不生成假TF活动。
 
 ## 高级图表与报告
