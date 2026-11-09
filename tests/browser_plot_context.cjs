@@ -1,0 +1,29 @@
+/* Real synthetic job: clicked comparison, conditional expression, controls and stale responses. */
+const {chromium}=require('playwright');
+const base=process.env.RNASEQ_TEST_BASE||'http://127.0.0.1:18887',job=process.argv[2];
+if(!job)throw Error('Usage: node tests/browser_plot_context.cjs SYNTHETIC_INTERACTION_JOB');
+(async()=>{
+ const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(base);await page.waitForFunction(()=>state.formEpoch>0);await page.locator('#project').selectOption(job);await page.waitForFunction(()=>state.manifest?.config.design_type==='interaction');
+ await page.locator('[data-view="differential"]').click();await page.waitForFunction(()=>state.chart?.kind==='volcano'&&state.basketReady==='volcano');
+ await page.locator('#chartselect').selectOption('contrast_effects|');await page.waitForFunction(()=>state.basketReady==='contrast_effects');
+ const clicked=await page.evaluate(()=>{const graph=document.getElementById('plot'),t=graph.data[0];const contrast=state.manifest.config.comparisons[1].name,gene=t.customdata[0][0];graph.emit('plotly_click',{points:[{x:contrast,y:t.y[0],customdata:gene}]});return {contrast,gene};});
+ await page.waitForFunction(({contrast,gene})=>document.getElementById('contrast').value===contrast&&document.getElementById('pointinspector').textContent.includes(gene)&&document.getElementById('pointinspector').textContent.includes(contrast),clicked);
+ const expected=await (await page.request.get(`${base}/api/jobs/${job}/gene?gene=${clicked.gene}&contrast=${clicked.contrast}`)).json();
+ const consistent=await page.evaluate(d=>document.getElementById('pointinspector').textContent.includes('log₂FC '+fmt(d.candidates[0].log2FoldChange)),expected);if(!consistent)throw Error('Inspector used statistics from another comparison');
+ if(await page.locator('#chartselect').inputValue()!=='contrast_effects|')throw Error('Click replaced comparison matrix');
+ await page.locator('#pointinspector button').filter({hasText:'查看当前比较'}).click();await page.waitForFunction(n=>document.getElementById('geneplot').data?.reduce((sum,t)=>sum+t.y.length,0)===n,expected.expression_samples.length);
+ if(expected.expression_samples.length!==6)throw Error('Unexpected synthetic conditional fixture');
+ await page.evaluate(async()=>{const c=state.manifest.charts.find(c=>c.kind==='gene_expression'&&c.contrast===comparison());await selectChart(c);});
+ await page.locator('[data-setting="gene_scope"]').selectOption('all');await page.locator('#previewchart').click();await page.waitForFunction(()=>state.plotSettings?.gene_scope==='all'&&document.getElementById('plot').data.reduce((sum,t)=>sum+(t.y?.length||0),0)===12);
+ await page.locator('#chartselect').selectOption('contrast_effects|');await page.waitForFunction(()=>state.basketReady==='contrast_effects');
+ await page.locator('[data-setting="show_values"]').check();await page.locator('[data-setting="color_map"]').selectOption('purple_green');await page.locator('#editoradvanced').evaluate(n=>n.open=true);await page.locator('[data-setting="color_min"]').fill('-4');await page.locator('[data-setting="color_max"]').fill('4');await page.locator('#previewchart').click();await page.waitForFunction(()=>document.getElementById('plot').data[0].zmin===-4&&document.getElementById('plot').data[0].texttemplate==='%{text}');
+ await page.setViewportSize({width:390,height:844});await page.evaluate(async()=>{await selectChart(state.manifest.charts.find(c=>c.kind==='gene_forest'));});await page.waitForFunction(()=>state.basketReady==='gene_forest');
+ await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,{},{timeout:5000}).catch(async()=>{await page.screenshot({path:'/tmp/rnaseq-upgrade/overflow.png',fullPage:true});console.error(await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,items:[...document.querySelectorAll('body *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(n=>[n.tagName,n.id,n.className,n.getBoundingClientRect().right])})));throw Error('Mobile overflow');});await page.screenshot({path:'/tmp/rnaseq-upgrade/context-mobile-forest.png',fullPage:true});
+ await page.route('**/gene?**',async route=>{await new Promise(resolve=>setTimeout(resolve,250));await route.continue();});
+ await page.evaluate(async gene=>{const pending=inspectPoint(gene);resetNewAnalysis();await pending;},clicked.gene);
+ if(!await page.evaluate(()=>!state.job&&selectedGenes.size===0&&document.getElementById('pointinspector').hidden&&!document.getElementById('samples').value))throw Error('Stale response restored previous task');
+ if(process.argv[3]){await page.locator('#project').selectOption(process.argv[3]);await page.waitForFunction(()=>!!state.manifest);await page.locator('[data-view="differential"]').click();await page.waitForFunction(()=>state.basketReady==='volcano');const entry=await page.evaluate(()=>state.manifest.charts.find(c=>c.kind==='gene_expression'&&c.contrast===comparison()));await page.evaluate(e=>selectChart(state.manifest.charts.find(c=>c.kind===e.kind&&c.contrast===e.contrast)),entry);const fallback=page.getByRole('button',{name:'使用全部样本打开表达编辑器'});await fallback.waitFor();await fallback.click();await page.waitForFunction(()=>state.plotSettings?.gene_scope==='all');if(await page.locator('[data-setting="gene_scope"]').inputValue()!=='all')throw Error('Missing-factor opt-in failed');}
+ if(errors.length)throw Error(errors.join('\n'));await browser.close();console.log('PASS: correct clicked statistics, conditional 6/all 12 expression, comparison controls, heatmap range/values, mobile forest, stale reset');
+})().catch(e=>{console.error(e);process.exit(1)});

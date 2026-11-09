@@ -11,3 +11,6 @@
 .wizard-hide{display:none!important}.wizardbar{background:#e9f3ee;padding:16px;border-radius:12px;margin-bottom:20px}.wizardbar button{background:white;color:#126657;border:1px solid #b9cbc0}.wizardbar button.active{background:#126657;color:white}.design-controls{background:#f1f7f4;padding:16px;border-radius:8px;margin:12px 0 20px}.design-controls .check{align-self:center}#drafttable td[contenteditable]{min-width:100px;outline-color:#126657;white-space:normal}#drafttable td[contenteditable]:focus{background:#fff6d5}.wizardbar .actions{margin:0}details>summary{cursor:pointer;font-weight:600;color:#126657}details[open]>summary{margin-bottom:12px}@media(max-width:750px){.comparison,.comparison-head{grid-template-columns:1fr}.comparison{padding:10px;background:#f1f7f4;border-radius:6px;margin:10px 0}.comparison-head{display:none}.comparison input{width:100%}.wizardbar .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
 
 .hypothesis-label{grid-column:1/-1;color:#126657;font-weight:600;white-space:normal}
+
+/* Keep preset names readable when the plot editor stacks on a phone. */
+@media(max-width:750px){.chart-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.chart-toolbar>label{min-width:0}.chart-toolbar>.help,.chart-toolbar>button{grid-column:1/-1}.chart-toolbar .help{min-width:0}}

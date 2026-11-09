@@ -3,10 +3,12 @@ const {chromium}=require('playwright');const fs=require('fs');
 const base=process.env.RNASEQ_TEST_BASE||'http://127.0.0.1:18885';const job=process.argv[2];const input=process.argv[3];if(!job||!input)throw Error('Usage: node tests/browser_upgrade.cjs SYNTHETIC_JOB INPUT_DIRECTORY');
 (async()=>{
 const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(String(e)));
+let preflightRequests=0;page.on('request',r=>{if(r.url().endsWith('/api/preflight'))preflightRequests++;});
 await page.goto(base);await page.waitForFunction(()=>state.formEpoch>0);if(await page.locator('#samples').inputValue())throw Error('Fresh inputs not cleared');
 await page.locator('#mode').selectOption('counts');await page.locator('#samples').fill(input+'/samples.csv');await page.locator('#counts').fill(input+'/counts.csv');await page.locator('#readmetadata').click();await page.waitForFunction(()=>state.metadata?.groups.length===3);
 await page.locator('[data-wizard="1"]').click();await page.locator('#comparison_mode').selectOption('all');await page.locator('#generatecomparisons').click();await page.waitForFunction(()=>document.querySelectorAll('#comparisonrows .comparison').length===3);
 await page.locator('[data-wizard="3"]').click();await page.locator('#preflight').click();await page.waitForFunction(()=>document.getElementById('preflightresult').textContent.includes('矩阵秩'));
+if(preflightRequests!==1)throw Error('Preflight request repeated '+preflightRequests+' times');
 await page.screenshot({path:'/tmp/rnaseq-upgrade/browser-preflight.png',fullPage:true});
 await page.locator('#newproject').click();if(await page.locator('#samples').inputValue())throw Error('New task retained paths');await page.locator('#project').selectOption(job);await page.waitForFunction(()=>state.manifest?.config?.name&&state.job!==null);
 await page.locator('[data-view="differential"]').click();await page.waitForFunction(()=>state.chart?.kind==='volcano'&&state.basketReady==='volcano');

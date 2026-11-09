@@ -6,6 +6,8 @@ import json
 import os
 import re
 import textwrap
+import shutil
+import tempfile
 
 os.environ.setdefault('MPLCONFIGDIR', str(Path(__file__).parent/'.cache/matplotlib'))
 import matplotlib
@@ -23,6 +25,7 @@ import numpy as np
 import pandas as pd
 from dataio import read_frame
 
+STYLE_VERSION = 4
 PALETTE = ['#126657','#b64c4c','#317ba0','#bd9a4b','#8668ab','#c96d91','#73913b','#77858c']
 LABELS = dict(base_content='A/T/G/C 含量曲线', quality='碱基质量曲线', fastp_summary='原始/过滤 reads', qc_rates='Q20 / Q30 / GC 与保留率', mapping='Salmon 映射率', library_size='文库大小', distribution='表达分布', pca='PCA 样本诊断', pca_scree='PCA 方差解释', correlation='样本相关性热图', sample_distance='样本距离热图', dispersion='离散度诊断', volcano='火山图', ma='MA 图', p_hist='P 值分布诊断', heatmap='差异基因聚类热图', gene_expression='基因表达', go='GO 富集', gsea='GO GSEA', pathway='KEGG / GMT 富集', pathway_gsea='KEGG / GMT GSEA', gsea_curve='GSEA 富集曲线', leading_edge='GSEA 核心基因表达热图', enrichment_network='通路基因重叠网络', tf_activity='调控因子活性热图', tf_de='差异调控活性', activity='通路活性热图', activity_de='差异通路活性', pathway_traits='通路–表型关联热图', gene_trait='基因–表型散点图', wgcna_soft='WGCNA 软阈值诊断', wgcna_traits='模块–表型关联', wgcna_modules='共表达模块', wgcna_hubs='模块 hub 基因', wgcna_network='共表达子网络', deg_summary='各比较双方案差异统计', deg_overlap='跨比较 DEG 重叠',wgcna_enrichment='共表达模块功能富集')
 TITLES = dict(zip(LABELS, ['Base content','Read quality','Sequencing QC','Sequencing QC rates','Salmon mapping rate','Library size','Expression distribution','Sample PCA','PCA explained variance','Sample correlation','Sample distance','DESeq2 dispersion','Differential expression','MA plot','P-value distribution','Differential gene heatmap','Gene expression','GO over-representation','GO GSEA','GMT over-representation','GMT GSEA','GSEA enrichment curve','Leading-edge expression','Gene-set overlap network','Regulatory activity (ULM)','Differential regulatory activity','Pathway activity (ssGSEA)','Differential pathway activity','Pathway / trait association','Gene / phenotype exploration','WGCNA soft-threshold diagnostics','Module / trait association','WGCNA modules','Module hub genes','Coexpression subnetwork','Differential gene overview','DEG overlap across contrasts','Module over-representation']))
@@ -65,14 +68,24 @@ def get_settings(p, kind, opts=None):
     if 'style_version' not in saved and saved.get('width')==9 and saved.get('height')==6 and kind in ('volcano','pca'):
         saved.pop('width'); saved.pop('height')
     width,height = (7,6.5) if kind in ('volcano','pca','enrichment_network','wgcna_network') else (9,6.5)
-    cfg = dict(style_version=3,title='',width=width,height=height,font=11,dpi=300,up='#c56361',down='#397d9e',neutral='#c3cac6',alpha=.05,lfc=analysis.get('lfc',1),top=20,xlabel='',ylabel='',direction='all',significant_only=True,cluster=True,cluster_rows=True,cluster_cols=True,labels=5,genes='',gene='',term='',database='go',pcx=1,pcy=2,sample='',expression_scale='vst',gene_scale='normalized',gene_labels='symbol',annotated_genes='',label_positions={},point_size=28,point_alpha=.8,label_font=10,grid=True,legend=True,x_min='',x_max='',y_min='',y_max='',p_column=analysis.get('significance','padj'),group_colors=analysis.get('group_colors',{}),sample_labels=True,ellipse=False,symmetric_x=True,threshold_lines=True,show_points=True,connect_pairs=False,plot_style='box',heatmap_scale='row_z',color_map='blue_red',color_min='',color_max='',show_values=False,sample_order='original',ontology='all',enrichment_style='dot',enrichment_x='gene_ratio',sort_by='padj',wrap=36,read_end='R1',read_phase='both',module='',trait='',network_threshold=.2,network_nodes=40,network_members='leading_edge',correlation_method='pearson',profile_display='both',comparison_profile='strict',comparison_metric='gsea',association_mode='adjusted',heatmap_annotations='group,batch',pca_color='group',collapse_terms=False,collapse_threshold=.7)
+    cfg = dict(style_version=STYLE_VERSION,title='',width=width,height=height,font=11,dpi=300,up='#c56361',down='#397d9e',neutral='#c3cac6',alpha=.05,lfc=analysis.get('lfc',1),top=20,xlabel='',ylabel='',direction='all',significant_only=True,cluster=True,cluster_rows=True,cluster_cols=True,labels=5,genes='',gene='',term='',database='go',pcx=1,pcy=2,sample='',expression_scale='vst',gene_scale='normalized',gene_labels='symbol',annotated_genes='',label_positions={},point_size=28,point_alpha=.8,label_font=10,grid=True,legend=True,x_min='',x_max='',y_min='',y_max='',p_column=analysis.get('significance','padj'),group_colors=analysis.get('group_colors',{}),sample_labels=True,ellipse=False,symmetric_x=True,threshold_lines=True,show_points=True,connect_pairs=False,plot_style='box',heatmap_scale='row_z',color_map='blue_red',color_min='',color_max='',show_values=False,sample_order='original',ontology='all',enrichment_style='dot',enrichment_x='gene_ratio',sort_by='padj',wrap=36,read_end='R1',read_phase='both',module='',trait='',network_threshold=.2,network_nodes=40,network_members='leading_edge',correlation_method='pearson',profile_display='both',comparison_profile='strict',comparison_metric='gsea',association_mode='adjusted',heatmap_annotations='group,batch',pca_color='group',collapse_terms=False,collapse_threshold=.7,gene_scope='comparison')
     if (p/'active-profile.json').exists():
         active = json.loads((p/'active-profile.json').read_text())
         cfg.update(p_column=active['column'], alpha=active['alpha'], lfc=active['lfc'])
     if not (root/'normalized.csv').exists() and (root/'vst.csv').exists():cfg['gene_scale']='vst'
+    if kind in ('contrast_effects','pathway_comparison'):cfg['significant_only']=False
+    if kind=='pathway_comparison':
+        tables=[('gsea','go','gsea.csv'),('gsea','pathway','pathway_gsea.csv'),('activity','pathway','pathway-activity-differential.csv'),('tf','pathway','tf-activity-differential.csv'),('footprint','pathway','footprint-activity-differential.csv')]
+        for metric,database,file in tables:
+            files=[q/file for q in (root/'contrasts').glob('*') if (q/file).is_file()]
+            available=False
+            for f in files:
+                table=read_frame(f);column='padj' if 'padj' in table else 'adj.P.Val'
+                if column in table and table[column].notna().any():available=True;break
+            if available:cfg.update(comparison_metric=metric,database=database);break
     theme=json.loads((root/'project-theme.json').read_text()) if (root/'project-theme.json').exists() else {}
     cfg.update(theme);cfg.update(saved); cfg.update(opts or {})
-    cfg['style_version']=3
+    cfg['style_version']=STYLE_VERSION
     ranges = [('collapse_threshold',.5,1),('width',3,20),('height',3,20),('font',6,30),('dpi',72,600),('top',3,100),('alpha',1e-6,.999),('lfc',0,10),('labels',0,30),('pcx',1,5),('pcy',1,5),('point_size',5,150),('point_alpha',.05,1),('label_font',6,22),('wrap',12,80),('network_threshold',.01,1),('network_nodes',5,120)]
     for key,lo,hi in ranges:
         try: cfg[key] = float(cfg[key])
@@ -89,7 +102,7 @@ def get_settings(p, kind, opts=None):
         for k in (lo,hi):
             if cfg[k]!='' and not np.isfinite(float(cfg[k])): raise ValueError('范围必须为有限数')
         if cfg[lo]!='' and cfg[hi]!='' and float(cfg[lo])>=float(cfg[hi]): raise ValueError('范围最小值必须小于最大值')
-    choices = dict(comparison_profile=('strict','nominal'),comparison_metric=('gsea','activity','tf'),association_mode=('raw','adjusted'),expression_scale=('vst','normalized','tpm'),gene_scale=('normalized','vst','tpm'),gene_labels=('symbol','id'),p_column=('padj','pvalue'),direction=('all','up','down'),database=('go','pathway'),plot_style=('box','violin'),heatmap_scale=('row_z','none'),color_map=('blue_red','purple_green','viridis','custom'),sample_order=('original','group'),ontology=('all','BP','CC','MF'),enrichment_style=('dot','bar','lollipop'),enrichment_x=('gene_ratio','rich_factor','overlap','neglog10'),sort_by=('padj','NES','overlap','gene_ratio'),read_end=('R1','R2'),read_phase=('before','after','both'),network_members=('leading_edge','set'),correlation_method=('pearson','spearman'),profile_display=('both','active'))
+    choices = dict(gene_scope=('comparison','all'),comparison_profile=('strict','nominal'),comparison_metric=('gsea','activity','tf','footprint'),association_mode=('raw','adjusted'),expression_scale=('vst','normalized','tpm'),gene_scale=('normalized','vst','tpm'),gene_labels=('symbol','id'),p_column=('padj','pvalue'),direction=('all','up','down'),database=('go','pathway'),plot_style=('box','violin'),heatmap_scale=('row_z','none'),color_map=('blue_red','purple_green','viridis','custom'),sample_order=('original','group'),ontology=('all','BP','CC','MF'),enrichment_style=('dot','bar','lollipop'),enrichment_x=('gene_ratio','rich_factor','overlap','neglog10'),sort_by=('padj','NES','overlap','gene_ratio'),read_end=('R1','R2'),read_phase=('before','after','both'),network_members=('leading_edge','set'),correlation_method=('pearson','spearman'),profile_display=('both','active'))
     for key, options in choices.items():
         if cfg[key] not in options: raise ValueError('图表选择无效：'+key)
     for key in ('collapse_terms','cluster','cluster_rows','cluster_cols','significant_only','grid','legend','sample_labels','ellipse','symmetric_x','threshold_lines','show_points','connect_pairs','show_values'):
@@ -114,7 +127,7 @@ def chart_catalog(p):
     if (p/'vst.csv').exists() and not (p/'differential.csv').exists() and not (p/'contrasts').exists():add('gene_expression','expression')
     if len([q for _,q in targets if (q/'deg-all.csv').exists()])>1:
         for kind in ('deg_overlap','contrast_effects','gene_forest','deg_upset'):add(kind,'differential')
-    if len(targets)>1 and any((q/'pathway_gsea.csv').exists() or (q/'gsea.csv').exists() for _,q in targets):add('pathway_comparison','enrichment')
+    if len(targets)>1 and any((q/f).exists() for _,q in targets for f in ('pathway_gsea.csv','gsea.csv','pathway-activity-differential.csv','tf-activity-differential.csv','footprint-activity-differential.csv')):add('pathway_comparison','enrichment')
     for name,q in targets:
         for kind,file in dict(volcano='differential.csv',ma='differential.csv',p_hist='differential.csv',heatmap='differential.csv',gene_expression='differential.csv',go='go.csv',gsea='gsea.csv',pathway='pathway.csv',pathway_gsea='pathway_gsea.csv',activity_de='pathway-activity-differential.csv',tf_de='tf-activity-differential.csv',footprint_de='footprint-activity-differential.csv').items():
             if not (q/file).exists(): continue
@@ -276,7 +289,7 @@ def load_plot(p,kind,cfg):
         candidates = r.dropna(subset=['padj']) if r is not None and 'padj' in r else pd.DataFrame()
         if candidates.empty and r is not None:candidates=r.sort_values('baseMean',ascending=False)
         gene = cfg['gene'] or (str(candidates.iloc[0].gene) if len(candidates) else str(v.mean(axis=1).idxmax()))
-        data = gene_data(root,gene,contrast)
+        data = gene_data(root,gene,contrast,scope=cfg['gene_scope'] if kind=='gene_expression' else 'all')
         scale = {'vst':'vst','normalized':'normalized','tpm':'TPM'}[cfg['gene_scale']]
         if scale not in data['samples'][0]: raise ValueError('当前任务没有所选表达标度：'+cfg['gene_scale'])
         data['scale'] = scale
@@ -287,7 +300,11 @@ def load_plot(p,kind,cfg):
             data['trait']=trait
             data['adjusted']=json.loads(traits[(traits.gene==data['gene'])&(traits.trait==trait)].to_json(orient='records'))
             return 'trait',data,(trait,{'vst':'VST','normalized':'Normalized count','TPM':'TPM'}[scale])
-        return 'gene',data,('Group',{'vst':'VST expression','normalized':'Normalized count','TPM':'TPM'}[scale])
+        from comparison_context import expression_samples
+        analysis=json.loads((root/'config.json').read_text()) if (root/'config.json').exists() else {}
+        data['samples'],data['expression_context']=expression_samples(data['samples'],analysis,contrast,cfg['gene_scope'])
+        if not data['samples']:raise ValueError('所选比较和因素水平没有可用表达样本，请核对导入矩阵或选择全部样本')
+        return 'gene',data,('Group / factor stratum',{'vst':'VST expression','normalized':'Normalized count','TPM':'TPM'}[scale])
     if kind in ('enrichment_network','wgcna_network'):
         return 'network',network_data(p,kind,cfg),('','')
     if kind=='distribution':
@@ -427,9 +444,41 @@ def selected_labels(data,cfg):
 
 
 def render(p,kind,opts):
+    """Publish a complete figure generation; restore previous outputs on a handled failure."""
+    p=Path(p);staging=Path(tempfile.mkdtemp(prefix='.plots-',dir=p));preserve=False
+    try:
+        _render_files(p,kind,opts,staging)
+        files=sorted(f for f in staging.iterdir() if f.is_file())
+        expected={kind+'.'+extension for extension in ('svg','pdf','png','settings.json')}
+        if not expected.issubset({f.name for f in files}) or not any('.plot-data.' in f.name for f in files):
+            raise RuntimeError('绘图导出不完整，未替换上一版图件')
+        backup=staging/'backup';backup.mkdir();existed={}
+        for file in files:
+            target=p/file.name;existed[file.name]=target.is_file()
+            if existed[file.name]:shutil.copy2(target,backup/file.name)
+        published=[]
+        try:
+            for file in files:
+                os.replace(file,p/file.name);published.append(file.name)
+        except Exception as cause:
+            failures=[]
+            for name in reversed(published):
+                try:
+                    if existed[name]:os.replace(backup/name,p/name)
+                    else:(p/name).unlink(missing_ok=True)
+                except OSError:failures.append(name)
+            if failures:
+                preserve=True
+                raise RuntimeError('导出中断且部分回退失败；旧图备份保留在 '+str(backup)+'：'+', '.join(failures)) from cause
+            raise
+    finally:
+        if not preserve:shutil.rmtree(staging,ignore_errors=True)
+
+
+def _render_files(p,kind,opts,output):
     if kind in ADVANCED_LABELS:
         from advanced_plots import render as render_advanced
-        return render_advanced(p,kind,get_settings(p,kind,opts))
+        return render_advanced(p,kind,get_settings(p,kind,opts),output=output)
     cfg=get_settings(p,kind,opts);root=data_root(p);m=read_frame(root/'samples.csv',dtype=str);groups=colors_for(m,root,cfg)
     if kind in ('gsea_curve','leading_edge','enrichment_network'):cfg['database']=gsea_database(p,cfg)
     category,data,axes=load_plot(p,kind,cfg)
@@ -509,11 +558,15 @@ def render(p,kind,opts):
                 rank_ax.fill_between(data['rank'],data['stat'],color=cfg['neutral']);rank_ax.set_xlabel('Gene rank');rank_ax.set_ylabel(ranking_label(root))
                 ax.text(.02,.03,f"NES={data['result']['NES']:.3g}; padj={data['result']['padj']:.3g}",transform=ax.transAxes,fontsize=9)
             elif category in ('gene','trait'):
-                x=pd.DataFrame(data['samples']);scale=data['scale'];rng=np.random.default_rng(42)
+                x=pd.DataFrame(data['samples']);scale=data['scale']
+                if 'biological_group' in x:
+                    biological_colors=dict(groups)
+                    for row in x[['group','biological_group']].drop_duplicates().itertuples(index=False):groups[row.group]=biological_colors[row.biological_group]
+                rng=np.random.default_rng(42)
                 if category=='gene':
                     if cfg['connect_pairs'] and data.get('subject_column','subject') in x:
                         order={g:i for i,g in enumerate(x.group.unique())}
-                        for _,subject in x.groupby(data.get('subject_column','subject')):
+                        for _,subject in x.groupby([data.get('subject_column','subject')]+(['stratum'] if 'stratum' in x else [])):
                             points=subject.assign(plot_x=subject.group.map(order)).sort_values('plot_x')
                             ax.plot(points.plot_x,points[scale],color=cfg['neutral'],lw=.8,zorder=1)
                     for i,g in enumerate(x.group.unique()):
@@ -584,14 +637,15 @@ def render(p,kind,opts):
             apply_axes(ax,cfg,kind,category,axes)
             if not cfg['title'] and category in ('gene','trait'):
                 ax.set_title(data['gene']+(' · '+data['trait'] if category=='trait' else ''),pad=14)
+            if category=='gene':ax.set_title((cfg['title'] or data['gene'])+'\n'+textwrap.fill(data.get('expression_context',{}).get('label',''),width=65),pad=14)
             if not cfg['title'] and category=='curve':
                 ax.set_title(data['term'],pad=14)
             handles,labels=ax.get_legend_handles_labels()
             if handles and cfg['legend']: ax.legend(frameon=False,fontsize=min(10,cfg['font']))
-            for fmt in ('svg','pdf','png'): fig.savefig(p/(kind+'.'+fmt),dpi=int(cfg['dpi']))
-            if isinstance(data,pd.DataFrame): data.to_csv(p/(kind+'.plot-data.csv'))
-            else: (p/(kind+'.plot-data.json')).write_text(json.dumps(data,ensure_ascii=False,allow_nan=False))
-            (p/(kind+'.settings.json')).write_text(json.dumps(cfg,indent=2,ensure_ascii=False))
+            for fmt in ('svg','pdf','png'): fig.savefig(output/(kind+'.'+fmt),dpi=int(cfg['dpi']))
+            if isinstance(data,pd.DataFrame): data.to_csv(output/(kind+'.plot-data.csv'))
+            else: (output/(kind+'.plot-data.json')).write_text(json.dumps(data,ensure_ascii=False,allow_nan=False))
+            (output/(kind+'.settings.json')).write_text(json.dumps(cfg,indent=2,ensure_ascii=False))
         finally: plt.close(fig)
 
 
@@ -616,7 +670,7 @@ def interactive_data(p,kind,args,options=None):
         from advanced_plots import spec
         root=data_root(p);overrides={k:args[k] for k in ('gene','genes','database','comparison_metric','comparison_profile','direction') if args.get(k)};overrides.update(options or {});cfg=get_settings(root,kind,overrides);return json_safe(spec(root,kind,cfg))
     from results import contrast_dir, records
-    target=contrast_dir(p,args.get('contrast'));overrides={k:args[k] for k in ('term','gene','genes','database','sample','annotated_genes','trait','module') if args.get(k)}
+    target=contrast_dir(p,args.get('contrast'));overrides={k:args[k] for k in ('term','gene','genes','database','sample','annotated_genes','trait','module','gene_scope') if args.get(k)}
     overrides.update(options or {})
     cfg=get_settings(target,kind,overrides)
     if kind in ('gsea_curve','leading_edge','enrichment_network'):cfg['database']=gsea_database(target,cfg)
@@ -703,6 +757,9 @@ def interactive_data(p,kind,args,options=None):
         layout['title']['text']=cfg['title'] or html.escape(data['term'])+f"<br><sup>NES {data['result']['NES']:.3g} · BH padj {data['result']['padj']:.3g}</sup>";layout['showlegend']=False
     elif category in ('gene','trait'):
         frame=pd.DataFrame(data['samples']);scale=data['scale']
+        if 'biological_group' in frame:
+            biological_colors=dict(groups)
+            for row in frame[['group','biological_group']].drop_duplicates().itertuples(index=False):groups[row.group]=biological_colors[row.biological_group]
         if category=='gene':
             for g in frame.group.unique():
                 x=frame[frame.group==g];trace=dict(type=cfg['plot_style'],name=g,y=x[scale].tolist(),text=x['sample'].tolist(),marker=dict(color=groups.get(g,PALETTE[int(hashlib.sha256(str(g).encode()).hexdigest()[:8],16)%len(PALETTE)]),**marker),hovertemplate='%{text}<br>%{y:.3g}<extra></extra>')
@@ -710,7 +767,7 @@ def interactive_data(p,kind,args,options=None):
                 else: trace.update(points='all' if cfg['show_points'] else False,box=dict(visible=True),meanline=dict(visible=True),jitter=.2)
                 traces.append(trace)
             if cfg['connect_pairs'] and data.get('subject_column','subject') in frame:
-                for subject,x in frame.groupby(data.get('subject_column','subject')):
+                for subject,x in frame.groupby([data.get('subject_column','subject')]+(['stratum'] if 'stratum' in frame else [])):
                     if len(x)>1: traces.append(dict(type='scatter',mode='lines',x=x.group.tolist(),y=x[scale].tolist(),line=dict(color=cfg['neutral'],width=1),name=str(subject),showlegend=False,hoverinfo='skip'))
         else:
             for g in frame.group.unique():
@@ -774,8 +831,10 @@ def interactive_data(p,kind,args,options=None):
                 if any(val is not None and val<=0 for val in limits): raise ValueError('对数坐标范围必须大于 0')
                 limits=[float(np.log10(val)) if val is not None else None for val in limits]
             layout[axis+'axis']['range']=limits
+    if category=='gene':
+        scope=data.get('expression_context',{});layout.setdefault('annotations',[]).append(dict(x=.5,y=1.06,xref='paper',yref='paper',text=html.escape(scope.get('label',''))+' · n='+str(scope.get('samples',len(data['samples']))),showarrow=False,font=dict(size=9)))
     config=dict(responsive=True,displaylogo=False,editable=True,edits=dict(annotationPosition=True,annotationText=False,axisTitleText=False,titleText=False,legendPosition=True),toImageButtonOptions=dict(format='svg',filename=kind,width=int(cfg['width']*96),height=int(cfg['height']*96)))
-    return json_safe(dict(data=traces,layout=layout,config=config,settings=cfg,category=category,metadata=data if isinstance(data,dict) else None,note=NOTES.get(kind,'悬停查看数据，拖动缩放。保存后同步更新 SVG、PDF、PNG、绘图数据和报告。').replace('VST',expression_label(root))))
+    return json_safe(dict(data=traces,layout=layout,config=config,settings=cfg,category=category,metadata=data if isinstance(data,dict) else None,note=((data.get('expression_context',{}).get('note','')+' ') if category=='gene' else '')+NOTES.get(kind,'悬停查看数据，拖动缩放。保存后同步更新 SVG、PDF、PNG、绘图数据和报告。').replace('VST',expression_label(root))))
 
 
 def json_safe(value):

@@ -39,6 +39,8 @@ def validate_module(request):
         if result.pvalue.notna().sum()<2:raise ValueError('完整差异结果没有足够的可用P值')
         cfg['differential_input']=str(local_file(cfg['differential_input']))
         cfg['run_gsea']=bool(cfg.get('run_gsea',True) and 'stat' in result and pd.to_numeric(result['stat'],errors='coerce').notna().sum()>=10)
+    cfg['display_factor']=cfg.get('display_factor') or cfg.get('interaction_factor','')
+    if stage=='enrichment':cfg['interaction_factor']=''  # Imported contrast provenance is not a new fitted interaction.
     from designs import prepare_design,design_matrix
     cfg=prepare_design(cfg,m,inferential=stage=='activity' and m.group.nunique()>1) if len(m) else cfg
     covariates=cfg.get('covariates')
@@ -76,6 +78,8 @@ def validate_module(request):
             if cmp['kind']=='interaction':
                 cmp.setdefault('reference_level',cfg['interaction_reference'])
                 if cmp['reference_level'] not in levels or cmp['reference_level']==cmp['factor_level']:raise ValueError('交互参考水平无效')
+        elif cmp['kind']=='interaction' and stage=='enrichment':
+            if not cmp.get('factor_level') or not cmp.get('reference_level') or cmp['factor_level']==cmp['reference_level']:raise ValueError('导入交互结果须保留因素水平与不同的参考水平')
         elif cmp['kind']=='interaction':raise ValueError('交互对比需要交互模型')
     if stage=='activity' and comparisons:
         design,_=design_matrix(cfg,m)

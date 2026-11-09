@@ -64,7 +64,7 @@ def table_page(p,name,args):
     offset=max(0,int(args.get('offset',0)));limit=min(500,max(1,int(args.get('limit',25))))
     return dict(columns=list(frame.columns),rows=records(frame.iloc[offset:offset+limit]),total=len(frame),available=True)
 
-def gene_data(p,query,contrast=None):
+def gene_data(p,query,contrast=None,scope='comparison'):
     if not query or len(query)>160: raise ValueError('请输入基因 ID 或 Symbol')
     q=contrast_dir(p,contrast)
     if (q/'differential.csv').exists():r=read_frame(q/'differential.csv')
@@ -84,7 +84,9 @@ def gene_data(p,query,contrast=None):
     candidates=r[mask]
     if candidates.empty: raise ValueError('本次保留的表达基因中未找到该 ID/Symbol')
     gene=str(candidates.iloc[0].gene)
-    if not (p/'vst.csv').exists():return dict(gene=gene,candidates=records(candidates),samples=[],associations=[],association_note='本次未导入表达矩阵，仅能查看原始差异统计。')
+    from comparison_context import resolve,expression_samples
+    cfg=read_json(p/'config.json',{});context=resolve(cfg,contrast)
+    if not (p/'vst.csv').exists():return dict(gene=gene,candidates=records(candidates),samples=[],comparison=context,expression_samples=[],expression_context={},associations=[],association_note='本次未导入表达矩阵，仅能查看原始差异统计。')
     m=read_frame(p/'samples.csv',dtype=str);vst=read_frame(p/'vst.csv',index_col=0)
     values=m.copy();values['vst']=vst.loc[gene,m['sample']].to_numpy()
     if (p/'normalized.csv').exists():
@@ -105,8 +107,9 @@ def gene_data(p,query,contrast=None):
             associations.append(dict(trait=col,spearman=float(estimate) if np.isfinite(estimate) else None,pvalue=float(pvalue) if np.isfinite(pvalue) and not repeated else None,n=len(m)))
     note='探索性 Spearman：未调整协变量、未作全基因多重检验；P 为渐近近似，小样本应慎用。不是因果或验证结果。'
     if repeated: note='存在重复 subject：仅展示 Spearman 描述系数，不报告独立样本 P；需要重复测量模型。'
+    focused,display_context=expression_samples(records(values),cfg,contrast,scope)
     from plots import expression_label
-    return dict(gene=gene,candidates=records(candidates),samples=records(values),associations=associations,association_note=note,expression_label=expression_label(p),subject_column=subject)
+    return dict(gene=gene,candidates=records(candidates),samples=records(values),comparison=context,expression_samples=focused,expression_context=display_context,associations=associations,association_note=note,expression_label=expression_label(p),subject_column=subject)
 
 def curve_data(p,database,term,contrast=None):
     if database not in ('go','pathway'): raise ValueError('未知基因集数据库')
@@ -161,6 +164,7 @@ def bundle(p):
     with zipfile.ZipFile(temporary,'w',zipfile.ZIP_DEFLATED) as z:
         for file in p.rglob('*'):
             if not file.is_file() or file.name in ('analysis-results.zip','analysis-results.tmp','runtime.json'): continue
+            if any(part.startswith('.plots-') for part in file.relative_to(p).parts):continue
             if file.relative_to(p).parts[0] in ('index','quant','qc','reference','.resume-cache'): continue
             z.write(file,str(file.relative_to(p)))
     temporary.replace(target);return target

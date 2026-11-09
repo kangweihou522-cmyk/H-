@@ -93,7 +93,7 @@ def test_preview_and_lazy_export_leave_statistics_intact(tmp_path,monkeypatch):
     assert response.status_code==200 and not (p/'volcano.settings.json').exists()
     response=client.get('/api/jobs/'+job+'/chart-download/volcano/svg')
     assert response.status_code==200 and b'<svg' in response.data
-    assert json.loads((p/'volcano.settings.json').read_text())['style_version']==3
+    assert json.loads((p/'volcano.settings.json').read_text())['style_version']==4
     assert before==(p/'differential.csv').read_bytes()
     assert client.get('/api/jobs/'+job+'/chart-download/volcano/not-an-extension').status_code==400
 

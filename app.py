@@ -608,13 +608,13 @@ def preview(job):
 def chart_download(job,kind,fmt):
     p=runpath(job)
     if json.loads((p/'status.json').read_text())['state'] not in ('completed','failed','cancelled'): raise ValueError('请等待分析结束')
-    from plots import LABELS,render
+    from plots import LABELS,render,STYLE_VERSION
     if kind not in LABELS or fmt not in ('svg','pdf','png','plot-data.csv','plot-data.json','settings.json'):
         raise ValueError('未知图表或导出格式')
     q=contrast_path(p,request.args.get('contrast'));file=q/(kind+'.'+fmt)
     settings=q/(kind+'.settings.json')
     current=json.loads(settings.read_text()) if settings.exists() else {}
-    if not file.exists() or current.get('style_version',0)<3:
+    if not file.exists() or current.get('style_version',0)<STYLE_VERSION:
         with render_lock: render(q,kind,{})
         from results import build_report
         build_report(p)
