@@ -12,12 +12,12 @@
     "assets/rna-to-reads.png": "c5d3d59286d7ce114294aa85ccf3e09c34933262e792e84ce386bbf84417b93f"
   },
   "builder_sha256": "735dbddfdbea45032a93403220ed99f7e951677226071e82a04e338f91ee0696",
-  "chapter_count": 39,
+  "chapter_count": 40,
   "code_fingerprint": "sha256:fdff95d07b264541d5d6d5e995df2bb94e5d8891226f9832d169434c4f4b623c",
-  "guide_version": "2026.10.27-r4",
-  "html_sha256": "b793d6e08c63d3c9b29b2a71436e055d31f4ec9d41d322e1c74c4ca33d82b7f9",
-  "manual_sha256": "bfdef47a62650043eaea0fa538e2724158b7bdbc0f2670b12768081919f8cbfc",
-  "reference_links": 47,
+  "guide_version": "2026.11.09-r5",
+  "html_sha256": "305216bbb34e67cb382bbabd73b1396808a6eed10f6aab8c805ebf0fc98ff481",
+  "manual_sha256": "dd62bc4163c1655b045fecc218a2dbbf715d82dee02a81a2ce0950c23c6cf5ee",
+  "reference_links": 61,
   "schema": 1,
   "source_files": {
     "Dockerfile": "b04250d857789a2c2bc5d680b18aac1a70c2f3a5b64572d7efe754a38b170320",
@@ -73,6 +73,6 @@
     "部署到D盘.sh": "5486b74de80af9a78c2f5b66372631d0348ae8825b899f536796c8b1f5029a5c"
   },
   "title": "小鼠 bulk RNA-seq 从零入门与工作站实操教程",
-  "updated": "2026-10-27",
-  "word_sha256": "d321577a82cae13cc882671f6c8d033abaa41bd8210afbc4ea7086ef58bfed3a"
+  "updated": "2026-11-09",
+  "word_sha256": "fb5774e5927460e3ca3eed5a53bd2c14960ea5a45eed5eff56b7c224df5a2d8a"
 }

@@ -1,0 +1,410 @@
+{
+  "review_date": "2026-11-09",
+  "audited_commit": "0379ec893f16c61f862ccd83ea1af8592dd2f3d0",
+  "scope": "Source and statistical-design audit; upstream primary documentation and linked publication metadata; no real customer sequencing data",
+  "source_fingerprint_note": "SHA256 identifies the retrieved file contents, not an upstream release or a Git commit. References to development branches can change.",
+  "search_discovery_urls": [
+    "https://github.com/topics/rna-seq",
+    "https://github.com/search?q=bulk+RNA-seq+analysis&type=repositories"
+  ],
+  "citation_metrics": "No comparable live bibliometric counts or GitHub stars were available; none are asserted.",
+  "sources": [
+    {
+      "key": "nfcore-rnaseq-usage",
+      "url": "https://raw.githubusercontent.com/nf-core/rnaseq/master/docs/usage.md",
+      "status": 200,
+      "bytes": 88290,
+      "sha256": "fab1ca45bb805fb151e8bc730d02c5dbb40baf46057736c306cf228e6e2b386e"
+    },
+    {
+      "key": "nfcore-rnaseq-outputs",
+      "url": "https://raw.githubusercontent.com/nf-core/rnaseq/master/docs/output.md",
+      "status": 200,
+      "bytes": 83080,
+      "sha256": "58aabaf57b885ad9db42210f64bcdd5cf8606040fc0eef9a8d612ad7a17d71ee"
+    },
+    {
+      "key": "nfcore-diff-usage",
+      "url": "https://raw.githubusercontent.com/nf-core/differentialabundance/master/docs/usage.md",
+      "status": 200,
+      "bytes": 55000,
+      "sha256": "5b45b7bff3118f5f55224db039bad34dbfdeb113ff3b2edbd9cf48772121af46"
+    },
+    {
+      "key": "deseq2-vignette",
+      "url": "https://raw.githubusercontent.com/thelovelab/DESeq2/devel/vignettes/DESeq2.Rmd",
+      "status": 200,
+      "bytes": 125111,
+      "sha256": "649995df2fd7f9330228d628cee8cf0f96155f3308470facd8a1b089a3a30089"
+    },
+    {
+      "key": "tximport-vignette",
+      "url": "https://raw.githubusercontent.com/thelovelab/tximport/master/vignettes/tximport.Rmd",
+      "status": 200,
+      "bytes": 20550,
+      "sha256": "1263ddb39fc544011816ca94a07f8198728148f178dbfdb0647d2cd0689e9373"
+    },
+    {
+      "key": "salmon-readme",
+      "url": "https://raw.githubusercontent.com/COMBINE-lab/salmon/master/README.md",
+      "status": 200,
+      "bytes": 4274,
+      "sha256": "066164f46acf19f57583d4b4ee8355e9a11d14fd593f6c92f565425856a8f86a"
+    },
+    {
+      "key": "idep-readme",
+      "url": "https://raw.githubusercontent.com/gexijin/iDEP/master/README.md",
+      "status": 200,
+      "bytes": 249,
+      "sha256": "426fb16552394b177c5523ef62354930c79e6b3bf1f5fdc008fac12d0b2d416c"
+    },
+    {
+      "key": "debrowser-readme",
+      "url": "https://raw.githubusercontent.com/UMMS-Biocore/debrowser/master/README.md",
+      "status": 200,
+      "bytes": 66608,
+      "sha256": "3d13cf2777a446aafecc9c20698e1f6fa2c01a33f8fa182969442eb70fadbac6"
+    },
+    {
+      "key": "isee-readme",
+      "url": "https://raw.githubusercontent.com/iSEE/iSEE/master/README.md",
+      "status": 200,
+      "bytes": 6884,
+      "sha256": "c17985d3eb06c2220c0a494b70624790f2260c1874ae7ba7d164b49c69bbd12c"
+    },
+    {
+      "key": "complexheatmap-readme",
+      "url": "https://raw.githubusercontent.com/jokergoo/ComplexHeatmap/master/README.md",
+      "status": 200,
+      "bytes": 4890,
+      "sha256": "293870a8fee8da952f5de62c880b3aa0c660eb0ca39eb3399b7e963c09cd24e2"
+    },
+    {
+      "key": "enhancedvolcano-readme",
+      "url": "https://raw.githubusercontent.com/kevinblighe/EnhancedVolcano/master/README.md",
+      "status": 200,
+      "bytes": 26451,
+      "sha256": "c9e9573be4e637e1975612215a460379979bcffa2d10d8d08e79f4f629dd9640"
+    },
+    {
+      "key": "clusterprofiler-readme",
+      "url": "https://raw.githubusercontent.com/YuLab-SMU/clusterProfiler/master/README.md",
+      "status": 200,
+      "bytes": 3244,
+      "sha256": "1792384f8a8e21376cf4e1d078ffb56e593ce7437770d723974b5c59351f8fa3"
+    },
+    {
+      "key": "enrichplot-readme",
+      "url": "https://raw.githubusercontent.com/YuLab-SMU/enrichplot/master/README.md",
+      "status": 200,
+      "bytes": 2795,
+      "sha256": "1ab9370a9b81b00ff23b4de4e5958961eba2b94f25d513515e2d591a57b95d75"
+    },
+    {
+      "key": "fgsea-readme",
+      "url": "https://raw.githubusercontent.com/alserglab/fgsea/master/README.md",
+      "status": 200,
+      "bytes": 4352,
+      "sha256": "55b24d635221e817bff60c64fcd638a237038cc4268aa326dfb7608d29e08b99"
+    },
+    {
+      "key": "decoupler-readme",
+      "url": "https://raw.githubusercontent.com/saezlab/decoupleR/master/README.md",
+      "status": 200,
+      "bytes": 4023,
+      "sha256": "f18a8ca1bb87ad06a28473b2745733e606649fdecd4f86924c3b266a24d3c53e"
+    },
+    {
+      "key": "dream-vignette",
+      "url": "https://raw.githubusercontent.com/GabrielHoffman/variancePartition/master/vignettes/dream.Rmd",
+      "status": 200,
+      "bytes": 14439,
+      "sha256": "0ca53f7e5f1886abdd0c13f8a45e28e99d066307cc7a591d81af59ce648d978b"
+    },
+    {
+      "key": "gsva-readme",
+      "url": "https://raw.githubusercontent.com/rcastelo/GSVA/master/README.md",
+      "status": 200,
+      "bytes": 6098,
+      "sha256": "7ca1d253484aa009fb3e07557787c3863d1f8d81962e32c7ed63c41e48c5811f"
+    },
+    {
+      "key": "wgcna-description",
+      "url": "https://raw.githubusercontent.com/cran/WGCNA/master/DESCRIPTION",
+      "status": 200,
+      "bytes": 2237,
+      "sha256": "31ddd913637aecace723defba0e9b4abb132debe4595fc44373c29d14a9219a5"
+    },
+    {
+      "key": "rnaseqgene-workflow",
+      "url": "https://raw.githubusercontent.com/mikelove/rnaseqGene/master/vignettes/rnaseqGene.Rmd",
+      "status": 200,
+      "bytes": 81017,
+      "sha256": "4f60dbc348b9176ce7b3e63a0df9eeef0e89115b0c30aa5156be48ff79b3d86e"
+    },
+    {
+      "key": "exploremodelmatrix",
+      "url": "https://raw.githubusercontent.com/csoneson/ExploreModelMatrix/master/README.md",
+      "status": 200,
+      "bytes": 2176,
+      "sha256": "052ea489e96236a06ffe45a0594263adccb2e4f2d3857fa1d1e1bc26526a46d2"
+    },
+    {
+      "key": "deseq-results-source",
+      "url": "https://raw.githubusercontent.com/thelovelab/DESeq2/devel/R/results.R",
+      "status": 200,
+      "bytes": 57215,
+      "sha256": "bf23751da82f2e1483d7a9b66c8464608b4fcd9494d64bda78fb778be305ea47"
+    },
+    {
+      "key": "bulkrna-best-practices",
+      "url": "https://raw.githubusercontent.com/hbctraining/DGE_workshop_salmon/master/README.md",
+      "status": 200,
+      "bytes": 5410,
+      "sha256": "16f0b54602366a9674ccb1d85276e54f4f81c4c5422975fae762b60191a68e7c"
+    },
+    {
+      "key": "msigdb-msigdbr",
+      "url": "https://raw.githubusercontent.com/igordot/msigdbr/master/README.md",
+      "status": 200,
+      "bytes": 1017,
+      "sha256": "a9f9e1e66545c1cad345740d6c842427738a788df91d60eb3dccf0391f6c4cae"
+    },
+    {
+      "key": "upset-readme",
+      "url": "https://raw.githubusercontent.com/krassowski/complex-upset/master/README.md",
+      "status": 200,
+      "bytes": 7324,
+      "sha256": "1a74c20e4df92f5b395774ced0908622858a02d273e86b9270f60c18805a227a"
+    },
+    {
+      "key": "fgsea-vignette",
+      "url": "https://raw.githubusercontent.com/alserglab/fgsea/master/vignettes/fgsea-tutorial.Rmd",
+      "status": 200,
+      "bytes": 5774,
+      "sha256": "d30cb87392e3c8ed761b98caf0454343a9a26e3dc9072557355de3a7857a677c"
+    },
+    {
+      "key": "gsva-vignette",
+      "url": "https://raw.githubusercontent.com/rcastelo/GSVA/master/vignettes/GSVA.Rmd",
+      "status": 200,
+      "bytes": 46374,
+      "sha256": "244f927422f30a8bcce0ed88c2447490ff4fbb38fd3cc27bfc6bd6a5745c43fc"
+    },
+    {
+      "key": "music-readme",
+      "url": "https://raw.githubusercontent.com/xuranw/MuSiC/master/README.md",
+      "status": 200,
+      "bytes": 6322,
+      "sha256": "e0d0ce57e656adfba3c142e2eb3a5195c0aacd6bf9d0e308ca816fa64e71b25a"
+    },
+    {
+      "key": "progeny-readme",
+      "url": "https://raw.githubusercontent.com/saezlab/progeny/master/README.md",
+      "status": 200,
+      "bytes": 2442,
+      "sha256": "e329242aed7bc350d672b9894dc26aac795c001f2631e60de80fa96219bd9c08"
+    },
+    {
+      "key": "interactivecomplexheatmap",
+      "url": "https://raw.githubusercontent.com/jokergoo/InteractiveComplexHeatmap/master/README.md",
+      "status": 200,
+      "bytes": 13382,
+      "sha256": "a7ac1a5936f8ea5eec3f4022c71366f425baf855a07269912dedce89138e5be0"
+    },
+    {
+      "key": "deseq-citation",
+      "url": "https://raw.githubusercontent.com/thelovelab/DESeq2/devel/inst/CITATION",
+      "status": 200,
+      "bytes": 701,
+      "sha256": "9ad06a985d8f52edaeb0186c595b6fd5fd196a6a11a345036e87b3367e3394c7"
+    },
+    {
+      "key": "clusterprofiler-citation",
+      "url": "https://raw.githubusercontent.com/YuLab-SMU/clusterProfiler/master/inst/CITATION",
+      "status": 200,
+      "bytes": 3897,
+      "sha256": "1b77a496cd415a5ae362d2208e21cd761460f6541a16549cba024f24419f52a1"
+    },
+    {
+      "key": "dream-citation",
+      "url": "https://raw.githubusercontent.com/GabrielHoffman/variancePartition/master/inst/CITATION",
+      "status": 200,
+      "bytes": 1646,
+      "sha256": "7a8850bd1c489bfecf3c8ab995134f5254be715b61c20308e770aaf8d19664b9"
+    },
+    {
+      "key": "idep-current-readme",
+      "url": "https://raw.githubusercontent.com/iDEP-SDSU/idep/master/readme.md",
+      "status": 200,
+      "bytes": 1171,
+      "sha256": "0ba8609d6e06d54d64c6913261bf222fad6f2f98aeed699f4d0e081fdf6ef0db"
+    },
+    {
+      "key": "nfcore-rnaseq-readme",
+      "url": "https://raw.githubusercontent.com/nf-core/rnaseq/master/README.md",
+      "status": 200,
+      "bytes": 13334,
+      "sha256": "b4e5b29433624097376ce480b1f83660da54503bb95c222ab60d6fdbc75f9279"
+    },
+    {
+      "key": "camera-doc",
+      "url": "https://raw.githubusercontent.com/bioc/limma/RELEASE_3_22/man/camera.Rd",
+      "status": 200,
+      "bytes": 7939,
+      "sha256": "ab49e7e1a5c2798b3d52eb99ecc80bb40bd58c1794aefc71e78055cedd1a8a0b"
+    },
+    {
+      "key": "fgsea-main",
+      "url": "https://raw.githubusercontent.com/alserglab/fgsea/master/R/fgsea.R",
+      "status": 200,
+      "bytes": 30745,
+      "sha256": "8c1e38596ab80e6a79f34f92f0fb336251a2b625c2f11ad0b9cea433eb0508be"
+    },
+    {
+      "key": "gsva-description",
+      "url": "https://raw.githubusercontent.com/rcastelo/GSVA/master/DESCRIPTION",
+      "status": 200,
+      "bytes": 2521,
+      "sha256": "34d9a6ca8564e16aa6451c7134ec2cac5bfed05cbd9cc5d7d2feb1122ca046b1"
+    },
+    {
+      "key": "multiqc-readme",
+      "url": "https://raw.githubusercontent.com/MultiQC/MultiQC/main/README.md",
+      "status": 200,
+      "bytes": 6601,
+      "sha256": "65c5a6e48c47556b8dd4bd3284d20dceb458d6291709a6a720d8ba59e62de1f0"
+    },
+    {
+      "key": "idepgolem-readme",
+      "url": "https://raw.githubusercontent.com/gexijin/idepGolem/master/README.md",
+      "status": 200,
+      "bytes": 10255,
+      "sha256": "34a59223e7d9580242b5f1e473f2e990f954ab3973ab319ea82571d14cfffb54"
+    },
+    {
+      "key": "clusterprofiler-simplify",
+      "url": "https://raw.githubusercontent.com/YuLab-SMU/clusterProfiler/master/R/simplify.R",
+      "status": 200,
+      "bytes": 17818,
+      "sha256": "89524293aa9d1c4babdde3c26bbd5987c91639df5d8705e1a5a0b4e7ab6cfd43"
+    },
+    {
+      "key": "clusterprofiler-compare",
+      "url": "https://raw.githubusercontent.com/YuLab-SMU/clusterProfiler/master/R/compareCluster.R",
+      "status": 200,
+      "bytes": 13298,
+      "sha256": "e7272ac6808d90d23d5d7eb9ded5ad9787019ec0e0d349e59e6b1d4844977c1a"
+    }
+  ],
+  "verification": {
+    "python_regression_tests": {
+      "passed": 56,
+      "command": ".venv/bin/python -m pytest -q"
+    },
+    "synthetic_input_checks": [
+      {
+        "case": "2 groups x 3 replicates; all pairs; batch adjusted",
+        "samples": 6,
+        "comparisons": 1,
+        "status": 200,
+        "covariates": [
+          {
+            "name": "batch",
+            "type": "categorical"
+          }
+        ]
+      },
+      {
+        "case": "3 groups x 3 replicates; all pairs; batch adjusted",
+        "samples": 9,
+        "comparisons": 3,
+        "status": 200,
+        "covariates": [
+          {
+            "name": "batch",
+            "type": "categorical"
+          }
+        ]
+      },
+      {
+        "case": "4 groups x 3 replicates; all pairs; batch adjusted",
+        "samples": 12,
+        "comparisons": 6,
+        "status": 200,
+        "covariates": [
+          {
+            "name": "batch",
+            "type": "categorical"
+          }
+        ]
+      },
+      {
+        "case": "subject present but omitted from covariates",
+        "accepted": true,
+        "actual_covariates": [],
+        "risk": "not automatically paired"
+      },
+      {
+        "case": "subject explicitly included",
+        "accepted": true,
+        "actual_covariates": [
+          {
+            "name": "subject",
+            "type": "categorical"
+          }
+        ]
+      },
+      {
+        "case": "batch fully confounded with group",
+        "accepted": false,
+        "message": "批次/协变量与分组混杂，或没有残差自由度"
+      }
+    ],
+    "chromium": {
+      "desktop": {
+        "groups": "3\nG0\n3\nG1\n3\nG2",
+        "preflight": "9 个有效样本，3 个比较组合；输出盘剩余 16 GB。\n\n未指定离线注释；GO/Entrez/Symbol映射将尝试容器中的 org.Mm.eg.db。",
+        "pageHeight": 3531,
+        "viewport": 1000,
+        "comparisonRows": 3
+      },
+      "mobile": {
+        "scrollWidth": 390,
+        "viewport": 390,
+        "comparisonInputWidths": [
+          92,
+          92,
+          92
+        ]
+      },
+      "jsErrors": []
+    },
+    "boundary": "Input/API and UI checks do not establish new R/Salmon end-to-end numerical equivalence. Historical synthetic tool runs are documented in VALIDATION.md.",
+    "manual_browser": {
+      "guide_version": "2026.11.09-r5",
+      "figures": 4,
+      "chapter29": true,
+      "search": true,
+      "word_sha256": "fb5774e5927460e3ca3eed5a53bd2c14960ea5a45eed5eff56b7c224df5a2d8a",
+      "mobile_overflow": false,
+      "standalone": true,
+      "js_errors": []
+    },
+    "manual_tests": {
+      "passed": 5,
+      "command": ".venv/bin/python -m pytest -q tests/test_manual.py"
+    }
+  },
+  "local_evidence": {
+    "multigroup": "validation.py:96-144; scripts/analyze.R:11-12,41-43",
+    "paired_default": "validation.py:115-117; scripts/mining.R:80-84",
+    "raw_pathway_traits": "scripts/mining.R:70-73",
+    "raw_module_traits": "scripts/mining.R:111-112",
+    "adjusted_gene_traits": "discovery.py:30-94",
+    "standalone_enrichment_limit": "scripts/module_inputs.py:73",
+    "de_checkpoint": "scripts/analyze.R:80-82",
+    "per_plot_controls": "plots.py:55-99; static/app.js:85-89",
+    "method_and_archive": "results.py:143-163"
+  }
+}

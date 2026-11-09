@@ -3,7 +3,7 @@
 :root{--ink:#183531;--green:#126657;--paper:#f4f7f5;--line:#d4e0d9;--muted:#557269}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.9 system-ui,"Microsoft Yahei",sans-serif}a{color:var(--green);overflow-wrap:anywhere}header{background:#183c34;color:white;padding:38px max(24px,calc((100vw - 1250px)/2));}header small{color:#c2dfd0;letter-spacing:.1em}h1{font-size:30px;line-height:1.5;margin:10px 0}header p{color:#d4e8df}header a{color:white;display:inline-block;border:1px solid #a9cabd;padding:6px 15px;border-radius:6px;text-decoration:none}.layout{display:grid;grid-template-columns:265px minmax(0,1fr);gap:30px;max-width:1300px;padding:28px 24px;margin:auto}aside{position:sticky;top:20px;align-self:start;max-height:94vh;overflow:auto;font-size:13px}aside ul{list-style:none;padding-left:14px}aside>nav>.toc>ul{padding-left:0}aside a{text-decoration:none;display:block;margin:5px 0}input{width:100%;border:1px solid #b9cbc0;border-radius:6px;font:inherit;padding:10px;background:white}#search-status{font-size:12px;color:var(--muted)}#search-results a{font-size:13px;margin:8px 0}article figure{margin:20px 0}article img{display:block;max-width:100%;height:auto;margin:auto;border:1px solid var(--line);border-radius:8px}figcaption{font-size:12px;color:var(--muted);margin:8px 0}section{background:white;border:1px solid var(--line);border-radius:12px;padding:24px 30px;margin-bottom:22px;min-width:0}h2{font-size:23px;margin-top:4px;line-height:1.6}h3{font-size:18px;margin-top:28px}h4{font-size:16px}p,li{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:9px;min-width:100px}th{background:#edf4ef}tr:nth-child(even){background:#fafcfb}.table-scroll{overflow-x:auto;margin:18px 0}pre{background:#102a23;color:#d1e9dd;padding:16px;border-radius:8px;overflow-x:auto;font:12px/1.7 Consolas,monospace}code{background:#edf4ef;border-radius:3px;padding:1px 4px;font: .9em Consolas,monospace}pre code{background:transparent;padding:0;color:inherit}blockquote{margin:18px 0;border-left:4px solid #64a28b;background:#edf5ef;padding:8px 18px;color:#365c4e}.stamp{font-size:12px;color:var(--muted);padding:0 4px;overflow-wrap:anywhere}button{font:inherit;background:var(--green);color:white;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}#search-results:empty{display:none}[hidden]{display:none!important}@media(max-width:850px){header{padding:24px}h1{font-size:25px}.layout{display:block;padding:16px}aside{position:static;max-height:none;margin-bottom:20px}aside nav{max-height:220px;overflow:auto;border-bottom:1px solid var(--line)}section{padding:20px 16px}h2{font-size:20px}}@media print{body{background:white;font-size:10pt}.layout{display:block;padding:0}aside,header a,button{display:none}header{background:white;color:#183531;padding:0}header p,header small{color:#183531}section{border:0;padding:0;break-inside:auto}h2,h3,h4{break-after:avoid}table{font-size:8pt}thead{display:table-header-group}tr{break-inside:avoid}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f5;color:#183531}.table-scroll{overflow:visible}}
 </style></head>
-<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>小鼠 bulk RNA-seq 从零入门与工作站实操教程</h1><p>基础知识 · 图解与算例 · 分析原理 · 实操与参考</p><p>说明书 2026.10.27-r4 · 适用程序 v2.0 · 更新 2026-10-27</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
+<body><header><small>LAB WORKSTATION · METHODS &amp; USER GUIDE</small><h1>小鼠 bulk RNA-seq 从零入门与工作站实操教程</h1><p>基础知识 · 图解与算例 · 分析原理 · 实操与参考</p><p>说明书 2026.11.09-r5 · 适用程序 v2.0 · 更新 2026-11-09</p><a id="word-download" href="/api/manual/word">下载同版本 Word 说明书</a></header>
 <div class="layout"><aside><label for="guide-search">搜索说明书</label><input id="guide-search" type="search" placeholder="例如：火山图、KEGG、样本表"><p id="search-status" role="status">输入关键词可定位到相关章节</p><div id="search-results"></div><nav aria-label="说明书目录"><div class="toc">
 <ul>
 <li><a href="#section-5ba67c792ff0">导读：先学知识，再按工作站步骤操作</a></li>
@@ -181,13 +181,22 @@
 <li><a href="#section-18fc1f8f23af">28.4 失败后选择合适的恢复方式</a></li>
 </ul>
 </li>
+<li><a href="#section-1da6a82186bc">29. 多组分析的适用边界与上游检索审查</a><ul>
+<li><a href="#section-1a3212fc48f3">29.1 两组以上是否可以一起输入</a></li>
+<li><a href="#section-ccaa86f85f77">29.2 配对和多重检验容易误用的两个地方</a></li>
+<li><a href="#section-744bcf605731">29.3 通路和网络的关联是否都调整了协变量</a></li>
+<li><a href="#section-2e764da62f8d">29.4 输入输出的现状与改进方向</a></li>
+<li><a href="#section-e689d076e570">29.5 可视化已经具备什么，还应完善什么</a></li>
+<li><a href="#section-c21866a09242">29.6 参考体系与高级挖掘的优先级</a></li>
+</ul>
+</li>
 </ul>
 </div>
-</nav><p class="stamp">程序内容指纹<br>sha256:fdff95d07b264541d5d6d5e995df2bb94e5d8891226f9832d169434c4f4b623c</p></aside><article><section><p>说明书版本：2026.10.27-r4</p>
-<p>适用程序：小鼠 bulk RNA-seq 工作站 2.0，Windows + WSL2 Ubuntu 24.04 或原生 Ubuntu。本文对应当前仓库实际实现；每个任务的真实设计、软件版本与完成状态，以该任务保存的参数、R-session、日志和报告为准。说明书编写日期：2026-10-27。</p>
+</nav><p class="stamp">程序内容指纹<br>sha256:fdff95d07b264541d5d6d5e995df2bb94e5d8891226f9832d169434c4f4b623c</p></aside><article><section><p>说明书版本：2026.11.09-r5</p>
+<p>适用程序：小鼠 bulk RNA-seq 工作站 2.0，Windows + WSL2 Ubuntu 24.04 或原生 Ubuntu。本文对应当前仓库实际实现；每个任务的真实设计、软件版本与完成状态，以该任务保存的参数、R-session、日志和报告为准。说明书更新日期：2026-11-09。</p>
 <p>本版按新手学习顺序重写：先理解RNA、建库测序、计数和统计，再使用软件。重要术语在首次出现时解释，配有原理图、计算例子、结果判读和自测答案；操作部分继续对应实际程序。示例样本名、数值、基因和路径仅用于教学，不代表实验发现。工作站不会把演示注释或合成数据当作真实小鼠生物学证据。</p>
 </section><section><h2 id="section-5ba67c792ff0">导读：先学知识，再按工作站步骤操作</h2>
-<p>这份教程分成两层。前面的“入门1—入门9”解释测序与分析究竟在做什么；后面的第1—26章对应工作站的操作、方法细节和可追溯资料。第一次接触转录组时，建议先读入门部分，再按实际输入类型完成操作。遇到术语，可回看文末按主题分组的词表。</p>
+<p>这份教程分成两层。前面的“入门1—入门9”解释测序与分析究竟在做什么；后面的第1—29章对应工作站的操作、方法细节和可追溯资料。第一次接触转录组时，建议先读入门部分，再按实际输入类型完成操作。遇到术语，可回看文末按主题分组的词表。第29章解释多组分析的实际边界，以及本次上游检索后提出、尚待实现的改进建议。</p>
 <div class="table-scroll"><table>
 <thead>
 <tr>
@@ -2220,7 +2229,7 @@ ENSMUSG00000000001  Example1    12345   GO:0005575  CC
 </table></div>
 <p>操作时先选图，再改参数，点击“预览调整”；临时预览不写结果文件。满意后“重绘并保存”会同步SVG/PDF/PNG、绘图数据、settings和HTML报告。下载设置可留作图注和复核依据。旧任务新增图在首次下载时会按保存参数生成，已有统计表不重算。结果表点击列名可按该列升降序排列。自动生成中单图遇到参数/数据问题会记录 <code>plot-warnings.json</code>，统计表保留，任务注意事项会提示；不要忽略该文件。</p>
 <h3 id="section-a0d1d53b625d">27.5 更新与推荐阅读</h3>
-<p>GitHub改动不会直接更新你D盘的安装。完成或取消正在运行的任务后，双击 <code>D:\转录组分析工作站\更新工作站.bat</code>，再启动工作站。在最后一项“使用说明与方法参考”核对版本2026.10.27-r3，可下载同步Word。旧任务可采用新绘图控件；新GO背景、基因–表型调整和full-decoy必须新建相应分析，不能仅通过重新画图获得。</p>
+<p>GitHub改动不会直接更新你D盘的安装。完成或取消正在运行的任务后，双击 <code>D:\转录组分析工作站\更新工作站.bat</code>，再启动工作站。在最后一项“使用说明与方法参考”核对说明书页首的当前版本，可下载同步Word。旧任务可采用新绘图控件；本章所述r3引入的新GO背景、基因–表型调整和full-decoy必须新建相应分析，不能仅通过重新画图获得。</p>
 <p>本轮也补充模块功能解释：在网络页选择“模块功能富集”，指定module、GO/GMT数据库和显示方式；跨模块×术语进行BH。不要把“模块富集”“DEG富集”和“GSEA”混作同一检验，它们的选集与背景不同。</p>
 <p>本轮逐项参考DESeq2官方vignette、tximport、nf-core/rnaseq usage、fgseaMultilevel、WGCNA、decoupleR ULM源代码，并借鉴enrichplot、EnhancedVolcano和ComplexHeatmap的图形组织。方法论文与链接见第24章；这些是方法/界面参考，工作站并未自动调用全部参考项目。另可直接查看 <a href="https://github.com/thelovelab/DESeq2/blob/devel/vignettes/DESeq2.Rmd">DESeq2官方教程源码</a>、<a href="https://github.com/nf-core/rnaseq/blob/master/docs/usage.md">nf-core索引建议</a>、<a href="https://github.com/kevinblighe/EnhancedVolcano">EnhancedVolcano</a>、<a href="https://github.com/jokergoo/ComplexHeatmap">ComplexHeatmap</a>。</p>
 </section><section><h2 id="section-427b9cc3e1ce">28. 空白新任务、失败恢复与单步分析</h2>
@@ -2314,7 +2323,179 @@ ENSMUSG00000000001  Example1    12345   GO:0005575  CC
 </table></div>
 <p>“调整参数后续跑”会显式恢复原任务参数、比较组合、样本排除和配色。它是主动恢复入口，日常打开或新建仍为空表单。默认勾选“复用输入与参数一致的已完成步骤”，也可关闭，以完全重新运行。</p>
 <p>复用规则示例：只改低表达过滤、协变量、LFC收缩或GMT时，可复用已完成fastp和Salmon；改fastp质量/长度阈值时，相关质控和定量重算；改参考、文库方向或单端片段分布时，相应索引/定量重算。只有完整成功标记且必要文件仍在的样本会被复用，未完成样本继续计算。统计、富集、挖掘和报告按新参数重算，不复用旧设计的DESeq2拟合。</p>
-<p>缓存以独立副本复制到新任务，后续计算不写回原任务。复制会额外占用磁盘，空间不足时可选择单步入口或关闭复用；原项目保留用于比较。<code>resume-provenance.json</code>记录来源、改变的参数、复用样本/索引与复制字节数。检查主要依据输入路径、大小、修改时间和参数，不是所有大文件的内容哈希；重大工具版本变更、怀疑缓存损坏时应关闭复用，并保留真实输入和版本记录。</p></section><p class="stamp">网页、Word 与文稿同步生成；内容指纹 bfdef47a62650043eaea0fa538e2724158b7bdbc0f2670b12768081919f8cbfc</p></article></div><script>
+<p>缓存以独立副本复制到新任务，后续计算不写回原任务。复制会额外占用磁盘，空间不足时可选择单步入口或关闭复用；原项目保留用于比较。<code>resume-provenance.json</code>记录来源、改变的参数、复用样本/索引与复制字节数。检查主要依据输入路径、大小、修改时间和参数，不是所有大文件的内容哈希；重大工具版本变更、怀疑缓存损坏时应关闭复用，并保留真实输入和版本记录。</p>
+</section><section><h2 id="section-1da6a82186bc">29. 多组分析的适用边界与上游检索审查</h2>
+<p>本章更新于2026-11-09，核对的分析代码为提交<code>0379ec8</code>。本次是方法、操作与参考审查；下文“建议增加”不代表功能已经实现。详见GitHub的<a href="https://github.com/kangweihou522-cmyk/H-/blob/main/docs/RESEARCH_AUDIT_2026-11-09.md">完整审查报告</a>和<a href="https://github.com/kangweihou522-cmyk/H-/blob/main/docs/research/RNASEQ_AUDIT_2026-11-09.json">来源与验证记录</a>。教程网页与Word同步包含本章。</p>
+<h3 id="section-1a3212fc48f3">29.1 两组以上是否可以一起输入</h3>
+<p><strong>可以。</strong> 完整分析和独立差异分析接受包含多个group的同一份样本表、对应全部样本的counts或Salmon结果；程序共同拟合一个<code>~ 协变量 + group</code>模型，再提取各个预先定义的两两比较。</p>
+<p>例如三个独立组Control、Model、Treatment，每组3只小鼠，计数样本表可写为：</p>
+<pre><code class="language-csv">sample,group,batch
+C1,Control,B1
+C2,Control,B2
+C3,Control,B1
+M1,Model,B1
+M2,Model,B2
+M3,Model,B1
+T1,Treatment,B1
+T2,Treatment,B2
+T3,Treatment,B1
+</code></pre>
+<p>计数矩阵的列名至少包含C1—T3这9个sample；FASTQ/Salmon模式则在相应样本表增加fastq1/fastq2或quant列。读取样本后，点击“添加比较”，分别定义：</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>比较名</th>
+<th>对照组</th>
+<th>处理组</th>
+<th>正log2FC表示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model_vs_Control</td>
+<td>Control</td>
+<td>Model</td>
+<td>Model高于Control</td>
+</tr>
+<tr>
+<td>Treatment_vs_Control</td>
+<td>Control</td>
+<td>Treatment</td>
+<td>Treatment高于Control</td>
+</tr>
+<tr>
+<td>Treatment_vs_Model</td>
+<td>Model</td>
+<td>Treatment</td>
+<td>Treatment高于Model</td>
+</tr>
+</tbody>
+</table></div>
+<p>仅仅输入3个组，不会自动创建所有3个比较，需要把实际研究问题对应的组合加齐。多组共同估计离散度与逐对拆开重新建模不是完全相同的过程；当前采用共同模型。</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>情况</th>
+<th>当前能力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两个独立组</td>
+<td>支持；每组至少2个重复，推荐至少3。最低数目不是效能保证</td>
+</tr>
+<tr>
+<td>三组或更多，做指定两两比较</td>
+<td>支持；每任务1—30个比较，4组全两两为6个，8组为28个</td>
+</tr>
+<tr>
+<td>分类batch/sex、连续age等调整</td>
+<td>支持加性协变量；numeric需显式声明；完全混杂或无残差自由度会拒绝</td>
+</tr>
+<tr>
+<td>简单配对</td>
+<td>可用subject固定效应，但必须显式加入并确保设计可估计</td>
+</tr>
+<tr>
+<td>三组“是否有任何一组不同”的总体检验</td>
+<td>尚未提供LRT入口；不能用多个两两比较冒充同一总检验</td>
+</tr>
+<tr>
+<td>基因型×处理、差中之差</td>
+<td>尚未提供正式交互公式/contrast入口；组合编码为group只解决组合间两两比较</td>
+</tr>
+<tr>
+<td>复杂时间、同鼠重复测量、随机效应</td>
+<td>尚未提供专门模型；普通协变量不等于完成纵向分析</td>
+</tr>
+<tr>
+<td>独立通路活性多组输入</td>
+<td>支持转换后表达与同设计limma两两比较</td>
+</tr>
+<tr>
+<td>独立富集批量导入多张外部差异表</td>
+<td>当前一次一个比较；完整主流程可产生多个比较的富集</td>
+</tr>
+</tbody>
+</table></div>
+<p>本次用合成整数计数验证了2组6样本/1比较、3组9样本/3比较、4组12样本/6比较，均通过输入/API预检查；Chromium也实际完成三组表单和预检查。现有56项Python回归测试通过。这些检查不替代真实样本的测序质量或本次重新运行的R统计验证。</p>
+<h3 id="section-ccaa86f85f77">29.2 配对和多重检验容易误用的两个地方</h3>
+<p><strong>第一，有subject列不等于模型已配对。</strong> 当前默认只尝试加入多水平batch；配对时必须在协变量填写<code>subject</code>，如还需batch则填写<code>batch,subject</code>，再核对是否可估计。程序对重复subject会跳过不适用的WGCNA/普通关联，但不会因此自动将DE模型改为配对。若同一动物在不同组各一次观测，<code>~ subject + group</code>可适用；更复杂重复测量需另设模型，不能机械加入全部列。建议后续增加设计选择器和遗漏subject提示。</p>
+<p><strong>第二，padj的校正范围不是所有结果混在一起。</strong> 当前每个DE对比内，基因P值分别做BH与独立过滤；ORA又按方向和ontology/数据库定义检验家族，GSEA和活性检验也有自己的家族。例如3个对比各自padj&lt;0.05，不等于已经保证全部“基因×3个对比”的整体FDR为5%。如果研究需要跨对比的发现控制，应预先明确问题和校正方法，另存全局/分层结果；不能把padj再随意校正一次。</p>
+<p>两套用户指定规则继续保留：探索方案<code>pvalue&lt;0.05且|LFC|&gt;0</code>、严格筛选<code>padj&lt;0.05且|LFC|&gt;1</code>。后者的效应筛选也不等于正式检验“真实|LFC|&gt;1”的阈值假设。切换后观察到更多基因，可以提出候选问题，不代表更高的可信度。</p>
+<h3 id="section-744bcf605731">29.3 通路和网络的关联是否都调整了协变量</h3>
+<p><strong>目前不是。</strong> 基因–连续表型偏相关已对完整模型矩阵（包含group）残差化，报告自由度和全基因×表型BH；通路–表型、WGCNA模块–表型目前仍是原始Pearson与各自BH。通路/TF的“组间差异”则另用带相同协变量的limma，不能把两类结果混淆。</p>
+<p>BH控制多重检验，不会移除batch、年龄或group造成的混杂。例如处理组体重较轻、某模块在处理组较高，原始模块–体重相关可能主要来自分组差异。后续应并列提供原始与调整关联，说明调整了谁。是否调整group取决于问题：总体变化与同组内的个体关联是不同问题。DE模型加入batch也不意味着WGCNA网络构建过程已经去除了batch。</p>
+<p>在当前版本中，读取上述关联热图应回看样本、分组与批次；高相关、高kME、多个leading-edge交集都只是候选证据，不是因果或独立验证。</p>
+<h3 id="section-2e764da62f8d">29.4 输入输出的现状与改进方向</h3>
+<p>现有本地路径、文件浏览、CSV/TSV模板、样本预览、单步入口和“载入上游结果”已经可用；仍需手工准备较多文件。尚没有拖入FASTQ目录自动建立样本、跨lane合并向导、真实Excel列映射或可复用参考资源选择器。文本“.xls”可读取，不等于支持二进制Excel格式。</p>
+<p>建议把新任务分成“选择已有材料→读取/确认样本→选择实验设计→生成比较→选择参考/资源→预检查”，只显示本入口适用参数。对于本机FASTQ，使用路径引用即可，不应要求把几十GB数据再上传到本机网页。已经准备好的参考和GMT应能按有版本的资源组合复用。</p>
+<p>现有输出包含完整统计、两套DEG、矩阵、富集/活性/网络、图形、设置与日志。建议在界面按中文用途分类，并把“可作为下一步输入”的文件直接标出；增加多比较汇总、可选多sheet Excel、模型和校正口径图注。当前根目录保留首个比较的兼容副本，其他比较请进入各自<code>contrasts/比较名</code>，不要把根目录文件当所有组的总表。</p>
+<p>结果ZIP排除qc/quant/index/reference等大目录，仍不是完整输入/缓存备份。原始数据和完整任务目录应自行妥善保存；后续可以增加空间可见的项目备份选项。</p>
+<h3 id="section-e689d076e570">29.5 可视化已经具备什么，还应完善什么</h3>
+<p>火山图点击基因、输入ID/Symbol定位、拖动标注、近方形画布、可调尺寸/配色/色阶和多格式导出均已具备。后续最有价值的改进是：</p>
+<ul>
+<li>跨图共享选中的基因和样本：火山图套索→热图→每个重复的表达→候选清单。</li>
+<li>多比较展示：基因×比较LFC热图/森林图、通路×比较NES或活性效应矩阵、方向一致的UpSet。</li>
+<li>热图同时标group/batch/sex/subject，分组切片与组内聚类；PCA颜色/形状可选元数据。</li>
+<li>GO展示去冗余、通路到leading-edge与样本表达的联动；去冗余不能删掉原始全量检验记录。</li>
+<li>项目级字体、色板、组顺序、成图尺寸模板与批量导出；每幅图明确模型、独立样本n、单位、阈值和FDR范围。</li>
+</ul>
+<p>小样本应保留所有样本点，不能仅用平滑小提琴或均值柱形遮住重复差异。描述性PCA椭圆不是处理效应显著性检验；表达均值比也不必等于调整协变量后的模型LFC。交互与静态导出采用不同引擎，重点验证选集、统计和配置一致，不能要求像素完全一样。</p>
+<h3 id="section-c21866a09242">29.6 参考体系与高级挖掘的优先级</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>优先目标</th>
+<th>推荐参考</th>
+<th>后续新增前提</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>实验设计、总体/交互检验、模型诊断</td>
+<td><a href="https://github.com/thelovelab/DESeq2/blob/devel/vignettes/DESeq2.Rmd">DESeq2官方vignette</a>、<a href="https://github.com/csoneson/ExploreModelMatrix">ExploreModelMatrix</a>、<a href="https://github.com/nf-core/differentialabundance">nf-core/differentialabundance</a></td>
+<td>正确的公式、contrast与可估计性，合成数据和官方函数数值核对</td>
+</tr>
+<tr>
+<td>QC、参考与可追溯记录</td>
+<td><a href="https://github.com/nf-core/rnaseq">nf-core/rnaseq</a>、Salmon、MultiQC</td>
+<td>物种/参考匹配、链特异性与覆盖率；BAM专属指标需对应输入</td>
+</tr>
+<tr>
+<td>界面引导与结果联动</td>
+<td><a href="https://github.com/gexijin/idepGolem">iDEP当前代码</a>、<a href="https://github.com/UMMS-Biocore/debrowser">DEBrowser</a>、<a href="https://github.com/iSEE/iSEE">iSEE</a></td>
+<td>按实际入口简化操作、跨面板选择、保持真实统计与来源</td>
+</tr>
+<tr>
+<td>多组通路与高级热图</td>
+<td><a href="https://github.com/YuLab-SMU/enrichplot">clusterProfiler/enrichplot</a>、<a href="https://github.com/jokergoo/ComplexHeatmap">ComplexHeatmap</a></td>
+<td>统一比较方向与FDR口径，多层注释，原始全量表保留</td>
+</tr>
+<tr>
+<td>通路足迹/调控活性</td>
+<td><a href="https://github.com/saezlab/progeny">PROGENy</a>、<a href="https://github.com/saezlab/decoupleR">decoupleR</a></td>
+<td>真实小鼠先验、覆盖与权重；区分响应足迹和基因集成员打分</td>
+</tr>
+<tr>
+<td>同鼠重复测量</td>
+<td><a href="https://github.com/GabrielHoffman/variancePartition">dream</a></td>
+<td>专用随机效应模型及诊断，不能用重复观测抬高独立样本数</td>
+</tr>
+<tr>
+<td>网络稳定性、模块保留</td>
+<td>WGCNA</td>
+<td>足够独立样本、批次敏感性、重抽样或外部队列；不将hub直接命名为致病机制</td>
+</tr>
+<tr>
+<td>细胞组成探索</td>
+<td><a href="https://github.com/xuranw/MuSiC">MuSiC</a></td>
+<td>匹配组织/物种的单细胞参考；估计结果需要验证，不能默认把免疫分数解释为细胞比例</td>
+</tr>
+</tbody>
+</table></div>
+<p>应先完成配对误用防护、混杂口径、注释覆盖与对比标识，再补LRT、检查点和跨比较联动，最后扩展高级挖掘。当前说明书不把PROGENy、dream、细胞组成或网络稳定性建议描述为已经执行的模块，也不把小样本机器学习评分当成验证。</p>
+<p>进一步阅读：nf-core框架论文，Nature Biotechnology 2020，<a href="https://doi.org/10.1038/s41587-020-0439-x">10.1038/s41587-020-0439-x</a>；clusterProfiler多组学实操，Nature Protocols 2024，<a href="https://doi.org/10.1038/s41596-024-01020-z">10.1038/s41596-024-01020-z</a>；DEBrowser，BMC Genomics 2019，<a href="https://doi.org/10.1186/s12864-018-5362-x">10.1186/s12864-018-5362-x</a>；iDEP，BMC Bioinformatics 2018，<a href="https://doi.org/10.1186/s12859-018-2486-6">10.1186/s12859-018-2486-6</a>；dream，Bioinformatics 2021卷期，<a href="https://doi.org/10.1093/bioinformatics/btaa687">10.1093/bioinformatics/btaa687</a>。主要方法论文另见第24章。本次没有可比的实时文献被引数，不以未经核实的“高引排名”选择方法。</p></section><p class="stamp">网页、Word 与文稿同步生成；内容指纹 dd62bc4163c1655b045fecc218a2dbbf715d82dee02a81a2ce0950c23c6cf5ee</p></article></div><script>
 const input=document.getElementById('guide-search'),result=document.getElementById('search-results'),status=document.getElementById('search-status');
 const chapters=[...document.querySelectorAll('article section')].map(s=>({heading:s.querySelector('h2'),text:s.textContent.toLocaleLowerCase()})).filter(s=>s.heading);
 input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase();result.replaceChildren();if(!q){status.textContent='输入关键词可定位到相关章节';return;}const found=chapters.filter(s=>s.text.includes(q));status.textContent=`找到 ${found.length} 个相关章节`;for(const s of found){const a=document.createElement('a');a.textContent=s.heading.textContent;a.href='#'+s.heading.id;result.append(a);}});
